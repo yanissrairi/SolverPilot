@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #0f172a; /* Slate 900 */
+}
+
+@layer components {
+  /* Glassmorphism Utilities */
+  .glass {
+    @apply bg-slate-900/60 backdrop-blur-md border border-white/10 shadow-xl;
+  }
+
+  .glass-panel {
+    @apply glass rounded-2xl overflow-hidden;
+  }
+
+  .glass-header {
+    @apply bg-slate-800/50 backdrop-blur-sm border-b border-white/5;
+  }
+
+  .btn-glass {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+           border border-white/10 hover:border-white/20 hover:bg-white/5 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 border-transparent;
+  }
+
+  .btn-danger {
+    @apply bg-red-600/80 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 border-transparent;
+  }
+
+  /* Custom Scrollbar for Logs */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-slate-950 rounded-lg;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-lg border-2 border-slate-950;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+}
+
+body {
+  @apply bg-gradient-to-br from-slate-950 via-slate-900 to-black min-h-screen selection:bg-blue-500/30;
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}

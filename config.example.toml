@@ -1,0 +1,45 @@
+# =============================================================================
+# Benchmark Runner Configuration
+# =============================================================================
+# Copy this file to: ~/.config/benchmark-runner/config.toml
+# =============================================================================
+
+[ssh]
+# SSH host (can be an alias from ~/.ssh/config or an IP address)
+host = "my-server"
+
+# SSH username
+user = "myuser"
+
+# Use ssh-agent for authentication (recommended)
+use_agent = true
+
+# Optional: Path to SSH key (auto-detected from ~/.ssh/config if not set)
+# key_path = "~/.ssh/id_ed25519"
+
+[paths]
+# Local project root (where pyproject.toml and uv.lock are located)
+local_code = "/home/user/my-project"
+
+# Directory containing benchmark_*.py files
+local_benchmarks = "/home/user/my-project/benchmarks"
+
+# Where to store downloaded results
+local_results = "/home/user/my-project/results"
+
+# Remote working directory (will contain code/, jobs/, results/)
+remote_base = "~/benchmarks"
+
+[polling]
+# How often to refresh logs (in seconds)
+interval_seconds = 2
+
+[gurobi]
+# Gurobi installation directory (leave empty to disable Gurobi env vars)
+home = "~/gurobi1200/linux64"
+# Path to Gurobi license file
+license_file = "~/gurobi1200/gurobi.lic"
+
+[tools]
+# Path to uv (Python package manager). Use "uv" to rely on PATH
+uv_path = "~/.local/bin/uv"

@@ -1,0 +1,17 @@
+# Edition alignment (CRITIQUE - évite divergence cargo fmt vs rustfmt)
+edition = "2021"
+style_edition = "2021"
+
+# Dimensions
+max_width = 100
+tab_spaces = 4
+hard_tabs = false
+newline_style = "Auto"
+
+# Organisation imports
+reorder_imports = true
+reorder_modules = true
+# group_imports = "StdExternalCrate"  # Requires nightly
+
+# Heuristiques
+use_small_heuristics = "Default"

@@ -1,0 +1,99 @@
+[package]
+name = "solver-pilot"
+version = "0.1.0"
+edition = "2021"
+description = "GUI for running optimization solvers and benchmarks on remote servers via SSH"
+authors = ["Yanis Srairi"]
+license = "MIT"
+repository = "https://github.com/yanissrairi/SolverPilot"
+readme = "../README.md"
+keywords = ["solver", "optimization", "benchmark", "ssh", "tauri", "gurobi", "milp"]
+categories = ["command-line-utilities", "development-tools", "science"]
+
+[lib]
+name = "solver_pilot_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime (minimal features for smaller binary)
+tokio = { version = "1", features = ["rt-multi-thread", "process", "sync", "macros", "time", "io-util"] }
+
+# Database
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+
+# Config
+toml = "0.8"
+
+# Utilities
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+directories = "5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "ansi"] }
+
+# =============================================================================
+# Build Profiles
+# =============================================================================
+
+[profile.dev]
+incremental = true          # Builds incrémentaux (plus rapide)
+opt-level = 0               # Pas d'optimisation (compile vite)
+debug = 1                   # Symboles debug minimaux (moins de I/O)
+
+[profile.dev.package."*"]
+opt-level = 3               # Dépendances optimisées (compilées 1x, exécution rapide)
+
+[profile.release]
+lto = true                  # Link-Time Optimization
+strip = true                # Retire symboles debug
+opt-level = "z"             # Optimise pour la taille
+codegen-units = 1           # Meilleure optimisation (plus lent à compiler)
+panic = "abort"             # Retire le code de unwinding (~8% taille)
+
+# ============================================================================
+# Lints Configuration (Clippy strict)
+# ============================================================================
+
+[lints.clippy]
+# Groups avec priority -1 pour permettre les overrides
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# Règles strictes (SOTA 2026) - priority -1 pour éviter conflits avec lints individuels
+all = { level = "warn", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+style = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+
+# Exceptions raisonnables (après les groupes grâce à priority)
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+multiple_crate_versions = "allow"
+too_many_lines = "allow"
+cognitive_complexity = "allow"
+
+# Restriction lints (sélectifs - force gestion d'erreur explicite)
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "deny"
+expect_used = "deny"
+
+[lints.rust]
+unsafe_code = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+missing_docs = "allow"
+unused_qualifications = "warn"
