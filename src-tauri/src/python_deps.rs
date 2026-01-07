@@ -30,7 +30,7 @@ pub struct LocalDependency {
     /// Le fichier existe-t-il?
     pub exists: bool,
     /// Dépendances enfants (récursives)
-    pub children: Vec<LocalDependency>,
+    pub children: Vec<Self>,
 }
 
 /// Un package externe (pip/pypi)
