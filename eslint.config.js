@@ -29,20 +29,7 @@ export default ts.config(
     },
   },
 
-  // Svelte files config
-  {
-    files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
-    languageOptions: {
-      parserOptions: {
-        projectService: true,
-        extraFileExtensions: ['.svelte'],
-        parser: ts.parser,
-        svelteConfig,
-      },
-    },
-  },
-
-  // Custom strict rules
+  // Custom strict rules (for all files)
   {
     rules: {
       // TypeScript strict
@@ -56,12 +43,34 @@ export default ts.config(
       // Core ESLint strict
       eqeqeq: ['error', 'always'],
       'no-console': 'warn',
-      'prefer-const': 'error',
+      'prefer-const': 'error', // Base rule for .ts files
       'no-var': 'error',
 
       // Svelte
       'svelte/no-unused-svelte-ignore': 'error',
       'svelte/valid-compile': 'off', // Let Svelte compiler handle
+    },
+  },
+
+  // Svelte files config - MUST be AFTER global rules to override prefer-const
+  {
+    files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        extraFileExtensions: ['.svelte'],
+        parser: ts.parser,
+        svelteConfig,
+      },
+    },
+    rules: {
+      // Svelte 5 typing bug: inline snippets typed as void causes false positive
+      // https://github.com/sveltejs/svelte/issues/16664
+      '@typescript-eslint/no-confusing-void-expression': 'off',
+      // Use svelte/prefer-const instead of base rule (handles $props, $derived runes)
+      // https://sveltejs.github.io/eslint-plugin-svelte/rules/prefer-const/
+      'prefer-const': 'off',
+      'svelte/prefer-const': 'error',
     },
   },
 
@@ -74,6 +83,10 @@ export default ts.config(
       'node_modules/**',
       'target/**',
       'src-tauri/**',
+      'projects/**',
+      '.venv/**',
+      '**/.venv/**',
+      '**/site-packages/**',
       '*.config.js',
       '*.config.ts',
     ],

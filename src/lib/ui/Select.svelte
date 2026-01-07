@@ -1,5 +1,4 @@
 <script lang="ts">
-  /* eslint-disable prefer-const */
   interface Option {
     value: string;
     label: string;

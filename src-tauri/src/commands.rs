@@ -1,9 +1,10 @@
+use std::path::Path;
 use tauri::State;
 
 use crate::config::AppConfig;
 use crate::ssh::SshKeyStatus;
-use crate::state::{AppState, Benchmark, Job, JobStatus, JobStatusResponse, SyncStatus};
-use crate::{db, job, ssh};
+use crate::state::{AppState, Benchmark, Job, JobStatus, JobStatusResponse, Project, SyncStatus};
+use crate::{db, job, project, python_deps, ssh};
 
 // ============================================================================
 // Configuration
@@ -102,7 +103,28 @@ pub async fn check_sync_status(state: State<'_, AppState>) -> Result<SyncStatus,
         .clone()
         .ok_or("Config non chargée")?;
 
-    match ssh::rsync_dry_run(&config).await {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    // Récupérer le projet actif
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif - sélectionnez un projet d'abord")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    let project_dir = project::project_path(&proj.name);
+
+    match ssh::rsync_dry_run(&config, &proj.name, &project_dir).await {
         Ok(files) => {
             if files.is_empty() {
                 Ok(SyncStatus::UpToDate)
@@ -126,15 +148,37 @@ pub async fn sync_code(state: State<'_, AppState>) -> Result<(), String> {
         .clone()
         .ok_or("Config non chargée")?;
 
-    ssh::rsync_to_server(&config).await
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    // Récupérer le projet actif
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif - sélectionnez un projet d'abord")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    let project_dir = project::project_path(&proj.name);
+
+    ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await
 }
 
-// ============================================================================
-// Benchmarks
-// ============================================================================
-
+/// Synchronise uniquement les fichiers nécessaires pour un benchmark
+/// (analyse les dépendances et sync les fichiers identifiés)
 #[tauri::command]
-pub async fn scan_benchmarks(state: State<'_, AppState>) -> Result<Vec<Benchmark>, String> {
+pub async fn sync_benchmark_deps(
+    state: State<'_, AppState>,
+    benchmark_path: String,
+) -> Result<usize, String> {
     let config = state
         .config
         .lock()
@@ -142,8 +186,376 @@ pub async fn scan_benchmarks(state: State<'_, AppState>) -> Result<Vec<Benchmark
         .clone()
         .ok_or("Config non chargée")?;
 
-    let benchmarks = job::scan_benchmarks(&config.paths.local_benchmarks);
-    Ok(benchmarks)
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    let benchmark_path = Path::new(&benchmark_path);
+
+    // Le dossier parent du benchmark comme racine pour les imports locaux
+    let local_code_root = benchmark_path
+        .parent()
+        .ok_or("Impossible de déterminer le dossier parent")?;
+
+    // pyproject.toml du projet
+    let pyproject_path = project::pyproject_path(&proj.name);
+    let pyproject = if pyproject_path.exists() {
+        Some(pyproject_path.as_path())
+    } else {
+        None
+    };
+
+    // Analyser les dépendances
+    let mut analyzer = python_deps::PythonAnalyzer::new()?;
+    let analysis = analyzer.analyze(benchmark_path, local_code_root, pyproject)?;
+
+    // Collecter tous les fichiers à synchroniser
+    let files = analysis.collect_all_file_paths();
+    let file_count = files.len();
+
+    // D'abord sync le projet (pyproject.toml, uv.lock)
+    let project_dir = project::project_path(&proj.name);
+    ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await?;
+
+    // Puis sync les fichiers du benchmark
+    ssh::rsync_benchmark_files(&config, &proj.name, benchmark_path, &files).await?;
+
+    Ok(file_count)
+}
+
+// ============================================================================
+// Projects
+// ============================================================================
+
+/// Liste tous les projets
+#[tauri::command]
+pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<Project>, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    db::list_projects(&pool).await
+}
+
+/// Crée un nouveau projet avec environnement uv
+#[tauri::command]
+pub async fn create_project(
+    state: State<'_, AppState>,
+    name: String,
+    python_version: String,
+) -> Result<Project, String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    // Créer le dossier et initialiser uv
+    project::create_project(&name, &python_version, &config.tools.uv_path).await?;
+
+    // Insérer en DB
+    let id = db::insert_project(&pool, &name, &python_version).await?;
+
+    db::get_project(&pool, id)
+        .await?
+        .ok_or_else(|| "Projet non trouvé après création".to_string())
+}
+
+/// Supprime un projet et son dossier
+#[tauri::command]
+pub async fn delete_project(state: State<'_, AppState>, project_id: i64) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    // Récupérer le nom pour supprimer le dossier
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    // Supprimer de la DB (cascade sur benchmarks)
+    db::delete_project(&pool, project_id).await?;
+
+    // Supprimer le dossier
+    project::delete_project_dir(&proj.name)?;
+
+    // Si c'était le projet actif, le désélectionner
+    let mut current = state.current_project_id.lock().await;
+    if *current == Some(project_id) {
+        *current = None;
+    }
+    drop(current);
+
+    Ok(())
+}
+
+/// Définit le projet actif
+#[tauri::command]
+pub async fn set_active_project(
+    state: State<'_, AppState>,
+    project_id: i64,
+) -> Result<Project, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    *state.current_project_id.lock().await = Some(project_id);
+
+    Ok(proj)
+}
+
+/// Récupère le projet actif
+#[tauri::command]
+pub async fn get_active_project(state: State<'_, AppState>) -> Result<Option<Project>, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = *state.current_project_id.lock().await;
+
+    match project_id {
+        Some(id) => db::get_project(&pool, id).await,
+        None => Ok(None),
+    }
+}
+
+// ============================================================================
+// Python Version Management
+// ============================================================================
+
+/// Liste les versions Python disponibles
+#[tauri::command]
+pub async fn list_python_versions(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    project::list_python_versions(&config.tools.uv_path).await
+}
+
+/// Change la version Python du projet actif
+#[tauri::command]
+pub async fn set_project_python_version(
+    state: State<'_, AppState>,
+    version: String,
+) -> Result<(), String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    // Mettre à jour via uv
+    project::set_python_version(&proj.name, &version, &config.tools.uv_path).await?;
+
+    // Mettre à jour en DB
+    db::update_project_python_version(&pool, project_id, &version).await?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Project Benchmarks
+// ============================================================================
+
+/// Ajoute un benchmark au projet actif (chemin absolu)
+#[tauri::command]
+pub async fn add_benchmark_to_project(
+    state: State<'_, AppState>,
+    file_path: String,
+) -> Result<Benchmark, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    // Valider le fichier
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err(format!("Fichier non trouvé: {file_path}"));
+    }
+    if path
+        .extension()
+        .is_none_or(|ext| !ext.eq_ignore_ascii_case("py"))
+    {
+        return Err("Le fichier doit être un fichier Python (.py)".to_string());
+    }
+
+    // Vérifier si déjà ajouté
+    if db::benchmark_exists(&pool, project_id, &file_path).await? {
+        return Err("Ce benchmark est déjà ajouté au projet".to_string());
+    }
+
+    // Extraire le nom
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Nom de fichier invalide")?
+        .to_string();
+
+    let id = db::insert_benchmark(&pool, project_id, &name, &file_path).await?;
+
+    Ok(Benchmark {
+        id,
+        project_id,
+        name,
+        path: file_path,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+/// Supprime un benchmark du projet
+#[tauri::command]
+pub async fn remove_benchmark_from_project(
+    state: State<'_, AppState>,
+    benchmark_id: i64,
+) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    db::delete_benchmark(&pool, benchmark_id).await
+}
+
+/// Liste les benchmarks du projet actif
+#[tauri::command]
+pub async fn list_project_benchmarks(state: State<'_, AppState>) -> Result<Vec<Benchmark>, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    db::get_benchmarks_for_project(&pool, project_id).await
+}
+
+/// Analyse les dépendances Python d'un fichier benchmark
+#[tauri::command]
+pub async fn get_benchmark_dependencies(
+    state: State<'_, AppState>,
+    benchmark_path: String,
+) -> Result<python_deps::DependencyAnalysis, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    let benchmark_path = Path::new(&benchmark_path);
+
+    // Le dossier parent du benchmark comme racine pour les imports locaux
+    let local_code_root = benchmark_path
+        .parent()
+        .ok_or("Impossible de déterminer le dossier parent")?;
+
+    // pyproject.toml du projet
+    let pyproject_path = project::pyproject_path(&proj.name);
+    let pyproject = if pyproject_path.exists() {
+        Some(pyproject_path.as_path())
+    } else {
+        None
+    };
+
+    let mut analyzer = python_deps::PythonAnalyzer::new()?;
+    analyzer.analyze(benchmark_path, local_code_root, pyproject)
 }
 
 // ============================================================================
@@ -163,11 +575,18 @@ pub async fn queue_jobs(
         .ok_or("DB non initialisée")?
         .clone();
 
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif - sélectionnez un projet d'abord")?;
+
     let mut jobs = Vec::new();
     for name in benchmark_names {
-        let id = db::insert_job(&pool, &name).await?;
+        let id = db::insert_job(&pool, project_id, &name).await?;
         jobs.push(Job {
             id,
+            project_id: Some(project_id),
             benchmark_name: name,
             status: JobStatus::Pending,
             created_at: chrono::Utc::now().to_rfc3339(),
@@ -201,6 +620,17 @@ pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, S
         .ok_or("DB non initialisée")?
         .clone();
 
+    // Récupérer le projet actif
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif - sélectionnez un projet d'abord")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
     // Vérifier s'il y a déjà un job en cours
     if db::load_running_job(&pool).await?.is_some() {
         return Err("Un job est déjà en cours".to_string());
@@ -209,11 +639,12 @@ pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, S
     // Prendre le prochain job en attente
     let pending = db::load_pending_jobs(&pool).await?;
     if let Some(job) = pending.into_iter().next() {
-        // Sync le code avant de lancer
-        ssh::rsync_to_server(&config).await?;
+        // Sync le projet avant de lancer (pyproject.toml, uv.lock)
+        let project_dir = project::project_path(&proj.name);
+        ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await?;
 
         // Lancer le job
-        ssh::start_tmux_job(&config, job.id, &job.benchmark_name).await?;
+        ssh::start_tmux_job(&config, &proj.name, job.id, &job.benchmark_name).await?;
 
         // Mettre à jour le statut
         db::update_job_status(&pool, job.id, &JobStatus::Running).await?;
@@ -436,4 +867,162 @@ pub async fn delete_job(state: State<'_, AppState>, job_id: i64) -> Result<(), S
         .clone();
 
     db::delete_pending_job(&pool, job_id).await
+}
+
+// ============================================================================
+// Project Dependencies
+// ============================================================================
+
+/// Ajoute une dépendance au projet actif via `uv add`
+#[tauri::command]
+pub async fn add_project_dependency(
+    state: State<'_, AppState>,
+    package_name: String,
+) -> Result<String, String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    project::add_dependency(&proj.name, &package_name, &config.tools.uv_path).await
+}
+
+/// Supprime une dépendance du projet actif via `uv remove`
+#[tauri::command]
+pub async fn remove_project_dependency(
+    state: State<'_, AppState>,
+    package_name: String,
+) -> Result<String, String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    project::remove_dependency(&proj.name, &package_name, &config.tools.uv_path).await
+}
+
+/// Met à jour toutes les dépendances du projet actif
+#[tauri::command]
+pub async fn update_project_dependencies(state: State<'_, AppState>) -> Result<String, String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    project::update_dependencies(&proj.name, &config.tools.uv_path).await
+}
+
+/// Liste les dépendances du projet actif (depuis pyproject.toml)
+#[tauri::command]
+pub async fn list_project_dependencies(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    project::read_project_dependencies(&proj.name)
+}
+
+/// Synchronise l'environnement du projet actif via `uv sync`
+#[tauri::command]
+pub async fn sync_project_environment(state: State<'_, AppState>) -> Result<String, String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config non chargée")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("DB non initialisée")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("Aucun projet actif")?;
+
+    let proj = db::get_project(&pool, project_id)
+        .await?
+        .ok_or("Projet non trouvé")?;
+
+    project::sync_environment(&proj.name, &config.tools.uv_path).await
 }

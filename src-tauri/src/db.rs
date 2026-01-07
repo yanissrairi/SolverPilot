@@ -1,18 +1,58 @@
 use chrono::Utc;
 use sqlx::{sqlite::SqlitePool, Row};
 
-use crate::state::{Job, JobStatus};
+use crate::state::{Benchmark, Job, JobStatus, Project};
 
-/// Initialise la base de données `SQLite`
+// =============================================================================
+// Initialisation & Migrations
+// =============================================================================
+
+/// Initialise la base de données `SQLite` avec toutes les tables
 pub async fn init_db(db_path: &str) -> Result<SqlitePool, String> {
     let pool = SqlitePool::connect(&format!("sqlite:{db_path}?mode=rwc"))
         .await
         .map_err(|e| format!("Erreur connexion SQLite: {e}"))?;
 
+    // Table des projets
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            python_version TEXT NOT NULL DEFAULT '3.12',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| format!("Erreur création table projects: {e}"))?;
+
+    // Table des benchmarks (chemins absolus vers fichiers .py)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS benchmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            path TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            UNIQUE(project_id, path)
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| format!("Erreur création table benchmarks: {e}"))?;
+
+    // Table des jobs
     sqlx::query(
         r"
         CREATE TABLE IF NOT EXISTS jobs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
             benchmark_name TEXT NOT NULL,
             status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'completed', 'failed', 'killed')),
             created_at TEXT NOT NULL,
@@ -22,7 +62,8 @@ pub async fn init_db(db_path: &str) -> Result<SqlitePool, String> {
             progress_total INTEGER DEFAULT 0,
             results_path TEXT,
             error_message TEXT,
-            log_content TEXT
+            log_content TEXT,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
         )
         ",
     )
@@ -30,8 +71,209 @@ pub async fn init_db(db_path: &str) -> Result<SqlitePool, String> {
     .await
     .map_err(|e| format!("Erreur création table jobs: {e}"))?;
 
+    // Enable foreign keys
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Erreur activation foreign keys: {e}"))?;
+
     Ok(pool)
 }
+
+// =============================================================================
+// Projects CRUD
+// =============================================================================
+
+/// Insère un nouveau projet
+pub async fn insert_project(
+    pool: &SqlitePool,
+    name: &str,
+    python_version: &str,
+) -> Result<i64, String> {
+    let now = Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        r"
+        INSERT INTO projects (name, python_version, created_at, updated_at)
+        VALUES (?, ?, ?, ?)
+        ",
+    )
+    .bind(name)
+    .bind(python_version)
+    .bind(&now)
+    .bind(&now)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("Erreur insertion projet: {e}"))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Récupère un projet par ID
+pub async fn get_project(pool: &SqlitePool, id: i64) -> Result<Option<Project>, String> {
+    let row = sqlx::query(
+        r"
+        SELECT id, name, python_version, created_at, updated_at
+        FROM projects WHERE id = ?
+        ",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| format!("Erreur chargement projet: {e}"))?;
+
+    Ok(row.map(|r| Project {
+        id: r.get("id"),
+        name: r.get("name"),
+        python_version: r.get("python_version"),
+        created_at: r.get("created_at"),
+        updated_at: r.get("updated_at"),
+    }))
+}
+
+/// Liste tous les projets
+pub async fn list_projects(pool: &SqlitePool) -> Result<Vec<Project>, String> {
+    let rows = sqlx::query(
+        r"
+        SELECT id, name, python_version, created_at, updated_at
+        FROM projects ORDER BY name ASC
+        ",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| format!("Erreur chargement projets: {e}"))?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| Project {
+            id: r.get("id"),
+            name: r.get("name"),
+            python_version: r.get("python_version"),
+            created_at: r.get("created_at"),
+            updated_at: r.get("updated_at"),
+        })
+        .collect())
+}
+
+/// Met à jour la version Python d'un projet
+pub async fn update_project_python_version(
+    pool: &SqlitePool,
+    id: i64,
+    version: &str,
+) -> Result<(), String> {
+    let now = Utc::now().to_rfc3339();
+
+    sqlx::query("UPDATE projects SET python_version = ?, updated_at = ? WHERE id = ?")
+        .bind(version)
+        .bind(&now)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Erreur mise à jour version Python: {e}"))?;
+
+    Ok(())
+}
+
+/// Supprime un projet (cascade sur benchmarks)
+pub async fn delete_project(pool: &SqlitePool, id: i64) -> Result<(), String> {
+    sqlx::query("DELETE FROM projects WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Erreur suppression projet: {e}"))?;
+
+    Ok(())
+}
+
+// =============================================================================
+// Benchmarks CRUD
+// =============================================================================
+
+/// Insère un nouveau benchmark
+pub async fn insert_benchmark(
+    pool: &SqlitePool,
+    project_id: i64,
+    name: &str,
+    path: &str,
+) -> Result<i64, String> {
+    let now = Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        r"
+        INSERT INTO benchmarks (project_id, name, path, created_at)
+        VALUES (?, ?, ?, ?)
+        ",
+    )
+    .bind(project_id)
+    .bind(name)
+    .bind(path)
+    .bind(&now)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("Erreur insertion benchmark: {e}"))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Liste les benchmarks d'un projet
+pub async fn get_benchmarks_for_project(
+    pool: &SqlitePool,
+    project_id: i64,
+) -> Result<Vec<Benchmark>, String> {
+    let rows = sqlx::query(
+        r"
+        SELECT id, project_id, name, path, created_at
+        FROM benchmarks WHERE project_id = ?
+        ORDER BY name ASC
+        ",
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| format!("Erreur chargement benchmarks: {e}"))?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| Benchmark {
+            id: r.get("id"),
+            project_id: r.get("project_id"),
+            name: r.get("name"),
+            path: r.get("path"),
+            created_at: r.get("created_at"),
+        })
+        .collect())
+}
+
+/// Vérifie si un benchmark existe déjà (par path)
+pub async fn benchmark_exists(
+    pool: &SqlitePool,
+    project_id: i64,
+    path: &str,
+) -> Result<bool, String> {
+    let row = sqlx::query("SELECT 1 FROM benchmarks WHERE project_id = ? AND path = ?")
+        .bind(project_id)
+        .bind(path)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| format!("Erreur vérification benchmark: {e}"))?;
+
+    Ok(row.is_some())
+}
+
+/// Supprime un benchmark
+pub async fn delete_benchmark(pool: &SqlitePool, id: i64) -> Result<(), String> {
+    sqlx::query("DELETE FROM benchmarks WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Erreur suppression benchmark: {e}"))?;
+
+    Ok(())
+}
+
+// =============================================================================
+// Jobs (existant)
+// =============================================================================
 
 const fn status_to_str(status: &JobStatus) -> &'static str {
     match status {
@@ -54,15 +296,20 @@ fn str_to_status(s: &str) -> JobStatus {
 }
 
 /// Insère un nouveau job
-pub async fn insert_job(pool: &SqlitePool, benchmark_name: &str) -> Result<i64, String> {
+pub async fn insert_job(
+    pool: &SqlitePool,
+    project_id: i64,
+    benchmark_name: &str,
+) -> Result<i64, String> {
     let now = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
         r"
-        INSERT INTO jobs (benchmark_name, status, created_at)
-        VALUES (?, 'pending', ?)
+        INSERT INTO jobs (project_id, benchmark_name, status, created_at)
+        VALUES (?, ?, 'pending', ?)
         ",
     )
+    .bind(project_id)
     .bind(benchmark_name)
     .bind(&now)
     .execute(pool)
@@ -180,7 +427,7 @@ pub async fn load_running_job(pool: &SqlitePool) -> Result<Option<Job>, String> 
 pub async fn load_history(pool: &SqlitePool, limit: i32) -> Result<Vec<Job>, String> {
     let rows = sqlx::query(
         r"
-        SELECT id, benchmark_name, status, created_at, started_at, finished_at,
+        SELECT id, project_id, benchmark_name, status, created_at, started_at, finished_at,
                progress_current, progress_total, results_path, error_message, log_content
         FROM jobs
         WHERE status IN ('completed', 'failed', 'killed')
@@ -199,7 +446,7 @@ pub async fn load_history(pool: &SqlitePool, limit: i32) -> Result<Vec<Job>, Str
 async fn load_jobs_by_status(pool: &SqlitePool, status: &str) -> Result<Vec<Job>, String> {
     let rows = sqlx::query(
         r"
-        SELECT id, benchmark_name, status, created_at, started_at, finished_at,
+        SELECT id, project_id, benchmark_name, status, created_at, started_at, finished_at,
                progress_current, progress_total, results_path, error_message, log_content
         FROM jobs
         WHERE status = ?
@@ -219,6 +466,7 @@ fn rows_to_jobs(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
 
     for row in rows {
         let id: i64 = row.get("id");
+        let project_id: Option<i64> = row.get("project_id");
         let benchmark_name: String = row.get("benchmark_name");
         let status_str: String = row.get("status");
         let created_at: String = row.get("created_at");
@@ -237,6 +485,7 @@ fn rows_to_jobs(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
 
         jobs.push(Job {
             id,
+            project_id,
             benchmark_name,
             status: str_to_status(&status_str),
             created_at,

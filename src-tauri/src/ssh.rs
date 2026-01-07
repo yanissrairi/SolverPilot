@@ -366,16 +366,22 @@ pub async fn test_connection(config: &AppConfig) -> Result<bool, String> {
         .is_ok_and(|output| output.trim() == "ok"))
 }
 
-/// Rsync dry-run pour compter les fichiers modifiés (code + dépendances)
-pub async fn rsync_dry_run(config: &AppConfig) -> Result<Vec<String>, String> {
+/// Rsync dry-run pour compter les fichiers modifiés (pyproject.toml + uv.lock du projet)
+pub async fn rsync_dry_run(
+    config: &AppConfig,
+    project_name: &str,
+    project_dir: &std::path::Path,
+) -> Result<Vec<String>, String> {
     let ssh_cmd = rsync_ssh_command(config);
-    let local_path = format!("{}/", config.paths.local_code.to_string_lossy());
+    let local_path = format!("{}/", project_dir.display());
     let mut all_files: Vec<String> = Vec::new();
 
-    // 1. Check pyproject.toml et uv.lock
-    let remote_base = format!(
+    // Check pyproject.toml et uv.lock - sync vers le dossier projet isolé
+    let remote_project = format!(
         "{}@{}:{}/",
-        config.ssh.user, config.ssh.host, config.paths.remote_base
+        config.ssh.user,
+        config.ssh.host,
+        config.remote_project_path(project_name)
     );
 
     let mut deps_command = Command::new("rsync");
@@ -383,12 +389,13 @@ pub async fn rsync_dry_run(config: &AppConfig) -> Result<Vec<String>, String> {
         "-avzn", // dry-run
         "--include=pyproject.toml",
         "--include=uv.lock",
+        "--include=.python-version",
         "--exclude=*",
         "--out-format=%n",
         "-e",
         &ssh_cmd,
         &local_path,
-        &remote_base,
+        &remote_project,
     ]);
 
     deps_command
@@ -399,147 +406,163 @@ pub async fn rsync_dry_run(config: &AppConfig) -> Result<Vec<String>, String> {
     let deps_output = deps_command
         .output()
         .await
-        .map_err(|e| format!("Erreur rsync dry-run dépendances: {e}"))?;
+        .map_err(|e| format!("Erreur rsync dry-run: {e}"))?;
 
     let deps_stdout = String::from_utf8_lossy(&deps_output.stdout);
     for line in deps_stdout.lines() {
-        if (line == "pyproject.toml" || line == "uv.lock") && !line.is_empty() {
-            all_files.push(line.to_string());
-        }
-    }
-
-    // 2. Check 2_SRC/
-    let remote_code = format!(
-        "{}@{}:{}/",
-        config.ssh.user,
-        config.ssh.host,
-        config.remote_code_path()
-    );
-
-    let mut code_command = Command::new("rsync");
-    code_command.args([
-        "-avzn", // dry-run
-        "--delete",
-        // Sync uniquement 2_SRC/ avec ses fichiers .py
-        "--include=2_SRC/",
-        "--include=2_SRC/**",
-        "--exclude=__pycache__/",
-        "--exclude=*.pyc",
-        "--exclude=*",     // Exclure tout le reste
-        "--out-format=%n", // Format: juste le nom du fichier
-        "-e",
-        &ssh_cmd,
-        &local_path,
-        &remote_code,
-    ]);
-
-    code_command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let code_output = code_command
-        .output()
-        .await
-        .map_err(|e| format!("Erreur rsync dry-run code: {e}"))?;
-
-    let code_stdout = String::from_utf8_lossy(&code_output.stdout);
-
-    // Filtrer pour garder seulement les fichiers .py modifiés
-    for line in code_stdout.lines() {
-        if !line.is_empty()
-            && std::path::Path::new(line)
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("py"))
+        let trimmed = line.trim();
+        if !trimmed.is_empty()
+            && (trimmed == "pyproject.toml" || trimmed == "uv.lock" || trimmed == ".python-version")
         {
-            all_files.push(line.to_string());
+            all_files.push(trimmed.to_string());
         }
     }
 
     Ok(all_files)
 }
 
-/// Rsync local vers serveur (code + dépendances)
-pub async fn rsync_to_server(config: &AppConfig) -> Result<(), String> {
+/// Rsync du projet (pyproject.toml, uv.lock, .python-version) vers le serveur
+pub async fn rsync_project_to_server(
+    config: &AppConfig,
+    project_name: &str,
+    project_dir: &std::path::Path,
+) -> Result<(), String> {
     let ssh_cmd = rsync_ssh_command(config);
-    let local_path = format!("{}/", config.paths.local_code.to_string_lossy());
+    let local_path = format!("{}/", project_dir.display());
 
-    // 1. Sync pyproject.toml et uv.lock vers ~/benchmarks/
-    let remote_base = format!(
+    let remote_project = format!(
         "{}@{}:{}/",
-        config.ssh.user, config.ssh.host, config.paths.remote_base
+        config.ssh.user,
+        config.ssh.host,
+        config.remote_project_path(project_name)
     );
 
-    tracing::info!("Syncing pyproject.toml and uv.lock to {}", remote_base);
+    tracing::info!(
+        "Syncing project {} to {}",
+        project_dir.display(),
+        remote_project
+    );
 
-    let mut deps_command = Command::new("rsync");
-    deps_command.args([
+    let mut command = Command::new("rsync");
+    command.args([
         "-avz",
         "--include=pyproject.toml",
         "--include=uv.lock",
+        "--include=.python-version",
         "--exclude=*",
         "-e",
         &ssh_cmd,
         &local_path,
-        &remote_base,
+        &remote_project,
     ]);
 
-    deps_command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let deps_output = deps_command
+    let output = command
         .output()
         .await
-        .map_err(|e| format!("Erreur rsync dépendances: {e}"))?;
+        .map_err(|e| format!("Erreur rsync projet: {e}"))?;
 
-    if !deps_output.status.success() {
-        let stderr = String::from_utf8_lossy(&deps_output.stderr);
-        return Err(format!("rsync dépendances échoué: {stderr}"));
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("rsync projet échoué: {stderr}"))
     }
+}
 
-    // 2. Sync 2_SRC/ vers ~/benchmarks/code/
+/// Rsync des fichiers de benchmark et leurs dépendances vers le serveur
+///
+/// Cette fonction synchronise les fichiers Python du benchmark vers le remote.
+/// Les chemins sont groupés par leur répertoire parent commun pour optimiser rsync.
+pub async fn rsync_benchmark_files(
+    config: &AppConfig,
+    project_name: &str,
+    benchmark_path: &std::path::Path,
+    dependency_files: &[String],
+) -> Result<(), String> {
+    let ssh_cmd = rsync_ssh_command(config);
+
+    // Le répertoire du benchmark sert de base
+    let benchmark_dir = benchmark_path
+        .parent()
+        .ok_or("Impossible de déterminer le dossier du benchmark")?;
+
     let remote_code = format!(
         "{}@{}:{}/",
         config.ssh.user,
         config.ssh.host,
-        config.remote_code_path()
+        config.remote_project_code_path(project_name)
     );
 
-    tracing::info!("Syncing 2_SRC/ to {}", remote_code);
+    // Créer un fichier temporaire avec la liste des fichiers à synchroniser
+    let temp_dir = std::env::temp_dir();
+    let files_list_path = temp_dir.join("rsync_files.txt");
 
-    let mut code_command = Command::new("rsync");
-    code_command.args([
+    // Convertir les chemins absolus en chemins relatifs par rapport au dossier du benchmark
+    let mut relative_files = Vec::new();
+
+    // Ajouter le benchmark lui-même
+    if let Some(name) = benchmark_path.file_name() {
+        relative_files.push(name.to_string_lossy().to_string());
+    }
+
+    // Ajouter les dépendances (chemins relatifs)
+    for file in dependency_files {
+        let file_path = std::path::Path::new(file);
+        if let Ok(rel) = file_path.strip_prefix(benchmark_dir) {
+            relative_files.push(rel.to_string_lossy().to_string());
+        } else if file_path.exists() {
+            // Si le fichier n'est pas dans le dossier du benchmark, le copier directement
+            // (pour les imports depuis d'autres dossiers)
+            tracing::warn!("Fichier hors du dossier benchmark ignoré: {}", file);
+        }
+    }
+
+    // Écrire la liste des fichiers
+    std::fs::write(&files_list_path, relative_files.join("\n"))
+        .map_err(|e| format!("Erreur création liste fichiers: {e}"))?;
+
+    tracing::info!(
+        "Syncing {} files from {} to {}",
+        relative_files.len(),
+        benchmark_dir.display(),
+        remote_code
+    );
+
+    // Sync les fichiers Python spécifiques
+    let local_path = format!("{}/", benchmark_dir.display());
+    let mut command = Command::new("rsync");
+    command.args([
         "-avz",
-        "--delete",
-        // Sync uniquement 2_SRC/ avec ses fichiers .py
-        "--include=2_SRC/",
-        "--include=2_SRC/**",
-        "--exclude=__pycache__/",
-        "--exclude=*.pyc",
-        "--exclude=*", // Exclure tout le reste
+        "--files-from",
+        &files_list_path.to_string_lossy(),
         "-e",
         &ssh_cmd,
         &local_path,
         &remote_code,
     ]);
-
-    code_command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let code_output = code_command
+    let output = command
         .output()
         .await
-        .map_err(|e| format!("Erreur rsync code: {e}"))?;
+        .map_err(|e| format!("Erreur rsync fichiers: {e}"))?;
 
-    if code_output.status.success() {
+    // Nettoyer le fichier temporaire
+    let _ = std::fs::remove_file(&files_list_path);
+
+    if output.status.success() {
         Ok(())
     } else {
-        let stderr = String::from_utf8_lossy(&code_output.stderr);
-        Err(format!("rsync code échoué: {stderr}"))
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("rsync fichiers échoué: {stderr}"))
     }
 }
 
@@ -580,8 +603,15 @@ pub async fn tmux_session_exists(config: &AppConfig, session_name: &str) -> Resu
 }
 
 /// Crée une session tmux pour exécuter un job
+///
+/// # Arguments
+/// * `config` - Configuration de l'application
+/// * `project_name` - Nom du projet
+/// * `job_id` - ID du job
+/// * `benchmark_name` - Nom du fichier benchmark (ex: `my_benchmark.py`)
 pub async fn start_tmux_job(
     config: &AppConfig,
+    project_name: &str,
     job_id: i64,
     benchmark_name: &str,
 ) -> Result<(), String> {
@@ -589,34 +619,34 @@ pub async fn start_tmux_job(
     let jobs_path = config.remote_jobs_path();
     let log_file = format!("{jobs_path}/{job_id}.log");
 
-    // Créer les répertoires si nécessaire
+    // Créer les répertoires si nécessaire (projet isolé + jobs partagés)
+    let project_dir = config.remote_project_path(project_name);
     let mkdir_cmd = format!(
-        "mkdir -p {} {} {}",
-        config.remote_code_path(),
-        config.remote_jobs_path(),
-        config.remote_results_path()
+        "mkdir -p {}/code {}",
+        project_dir,
+        config.remote_jobs_path()
     );
     execute(config, &mkdir_cmd).await?;
 
     // Lancer le job dans tmux
-    // On travaille depuis remote_base (où sont pyproject.toml et .venv)
-    // Le code est dans remote_base/code/
+    // On travaille depuis le dossier projet (où sont pyproject.toml et .venv)
+    // Le code est dans project_dir/code/
     // Export des variables Gurobi + PYTHONUNBUFFERED pour logs temps réel
-    let base_dir = &config.paths.remote_base;
     let uv_path = &config.tools.uv_path;
 
     // Build Gurobi env exports (only if configured)
-    let gurobi_exports = if !config.gurobi.home.is_empty() {
+    let gurobi_exports = if config.gurobi.home.is_empty() {
+        String::new()
+    } else {
         format!(
             r#"export GUROBI_HOME="{}"; export GRB_LICENSE_FILE="{}"; export PATH="$PATH:$GUROBI_HOME/bin"; export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$GUROBI_HOME/lib"; "#,
             config.gurobi.home, config.gurobi.license_file
         )
-    } else {
-        String::new()
     };
 
+    // Le benchmark est dans project_dir/code/
     let cmd = format!(
-        r#"tmux new-session -d -s {session_name} 'exec > {log_file} 2>&1; export PYTHONUNBUFFERED=1; {gurobi_exports}cd {base_dir} && echo "=== Starting job ===" && echo "Working directory: $(pwd)" && echo "=== uv sync ===" && {uv_path} sync && echo "=== Running benchmark ===" && {uv_path} run python code/2_SRC/benchmarks/{benchmark_name} ; echo "=== Job finished with code: $? ==="'"#
+        r#"tmux new-session -d -s {session_name} 'exec > {log_file} 2>&1; export PYTHONUNBUFFERED=1; {gurobi_exports}cd {project_dir} && echo "=== Starting job ===" && echo "Working directory: $(pwd)" && echo "=== uv sync ===" && {uv_path} sync && echo "=== Running benchmark ===" && {uv_path} run python code/{benchmark_name} ; echo "=== Job finished with code: $? ==="'"#
     );
     execute(config, &cmd).await?;
 

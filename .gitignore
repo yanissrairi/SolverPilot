@@ -45,6 +45,13 @@ Thumbs.db
 # Personal configuration (use config.example.toml as template)
 config.toml
 
+# Database (contains local paths and job history)
+*.db
+solver-pilot.db
+
+# Local projects directory
+projects/
+
 # Logs
 *.log
 

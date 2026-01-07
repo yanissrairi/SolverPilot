@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub ssh: SshConfig,
-    pub paths: PathsConfig,
+    pub remote: RemoteConfig,
     pub polling: PollingConfig,
     #[serde(default)]
     pub gurobi: GurobiConfig,
@@ -17,7 +17,7 @@ pub struct SshConfig {
     pub host: String,
     pub user: String,
     pub use_agent: bool,
-    /// Chemin de la clé SSH (optionnel, défaut: ~/.`ssh/id_rsa`)
+    /// Chemin de la clé SSH (optionnel, défaut: `~/.ssh/id_rsa`)
     #[serde(default = "default_key_path")]
     pub key_path: String,
 }
@@ -28,14 +28,8 @@ fn default_key_path() -> String {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PathsConfig {
-    /// Dossier racine du code local (`3_ALGORITHMES`)
-    pub local_code: PathBuf,
-    /// Dossier des benchmarks locaux (pour affichage)
-    pub local_benchmarks: PathBuf,
-    /// Dossier des résultats locaux
-    pub local_results: PathBuf,
-    /// Dossier de base sur le serveur
+pub struct RemoteConfig {
+    /// Dossier de base sur le serveur (partagé entre tous les projets)
     pub remote_base: String,
 }
 
@@ -74,43 +68,53 @@ impl Default for ToolsConfig {
 }
 
 impl AppConfig {
-    /// Charge la configuration depuis ~/.config/solver-pilot/config.toml
-    pub fn load() -> Result<Self, String> {
-        let config_dir = directories::ProjectDirs::from("", "", "solver-pilot")
-            .ok_or("Impossible de déterminer le dossier config")?;
+    /// Retourne le chemin racine du projet (parent de src-tauri/)
+    pub fn project_root() -> PathBuf {
+        // CARGO_MANIFEST_DIR = chemin vers src-tauri/ à la compilation
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // Remonter d'un niveau pour avoir la racine du projet
+        manifest_dir.parent().unwrap_or(&manifest_dir).to_path_buf()
+    }
 
-        let config_path = config_dir.config_dir().join("config.toml");
+    /// Charge la configuration depuis `<project_root>/config.toml`
+    pub fn load() -> Result<Self, String> {
+        let config_path = Self::project_root().join("config.toml");
 
         let content = std::fs::read_to_string(&config_path)
-            .map_err(|e| format!("Erreur lecture {}: {}", config_path.display(), e))?;
+            .map_err(|e| format!("Erreur lecture {}: {e}", config_path.display()))?;
 
-        toml::from_str(&content).map_err(|e| format!("Erreur parsing config.toml: {e}"))
+        toml::from_str(&content)
+            .map_err(|e| format!("Erreur parsing {}: {e}", config_path.display()))
     }
 
-    /// Chemin du code sur le serveur
+    /// Chemin d'un projet spécifique sur le serveur
+    pub fn remote_project_path(&self, project_name: &str) -> String {
+        format!("{}/projects/{}", self.remote.remote_base, project_name)
+    }
+
+    /// Chemin du code d'un projet sur le serveur
+    pub fn remote_project_code_path(&self, project_name: &str) -> String {
+        format!("{}/projects/{}/code", self.remote.remote_base, project_name)
+    }
+
+    /// Chemin du code sur le serveur (deprecated - use `remote_project_code_path`)
+    #[deprecated(note = "Use remote_project_code_path instead for multi-project support")]
     pub fn remote_code_path(&self) -> String {
-        format!("{}/code", self.paths.remote_base)
+        format!("{}/code", self.remote.remote_base)
     }
 
-    /// Chemin des jobs sur le serveur
+    /// Chemin des jobs sur le serveur (partagé entre tous les projets)
     pub fn remote_jobs_path(&self) -> String {
-        format!("{}/jobs", self.paths.remote_base)
+        format!("{}/jobs", self.remote.remote_base)
     }
 
     /// Chemin des résultats sur le serveur
     pub fn remote_results_path(&self) -> String {
-        format!("{}/results", self.paths.remote_base)
+        format!("{}/results", self.remote.remote_base)
     }
 
-    /// Chemin de la base de données
+    /// Chemin de la base de données (dans le dossier projet)
     pub fn db_path() -> Result<PathBuf, String> {
-        let data_dir = directories::ProjectDirs::from("", "", "solver-pilot")
-            .ok_or("Impossible de déterminer le dossier data")?;
-
-        let db_dir = data_dir.data_dir();
-        std::fs::create_dir_all(db_dir)
-            .map_err(|e| format!("Erreur création dossier data: {e}"))?;
-
-        Ok(db_dir.join("solver-pilot.db"))
+        Ok(Self::project_root().join("solver-pilot.db"))
     }
 }

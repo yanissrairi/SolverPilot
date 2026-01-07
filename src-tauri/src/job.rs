@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use crate::state::Benchmark;
+//! Fonctions utilitaires pour la gestion des jobs
 
 /// Parse la progression depuis les logs
 /// Format attendu: [12/22] Config: ...
@@ -32,6 +30,7 @@ pub fn detect_job_finished(logs: &str) -> bool {
         "Résultats dans:",
         "benchmark_results.csv",
         "Total:",
+        "=== Job finished with code:",
     ];
 
     finish_patterns.iter().any(|p| logs.contains(p))
@@ -54,32 +53,6 @@ pub fn detect_job_error(logs: &str) -> Option<String> {
     } else {
         None
     }
-}
-
-/// Scanne les fichiers benchmark_*.py dans un répertoire
-pub fn scan_benchmarks(benchmarks_dir: &Path) -> Vec<Benchmark> {
-    let mut benchmarks = Vec::new();
-
-    if let Ok(entries) = std::fs::read_dir(benchmarks_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if name.starts_with("benchmark_")
-                    && Path::new(name)
-                        .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("py"))
-                {
-                    benchmarks.push(Benchmark {
-                        name: name.to_string(),
-                        path: path.to_string_lossy().to_string(),
-                    });
-                }
-            }
-        }
-    }
-
-    benchmarks.sort_by(|a, b| a.name.cmp(&b.name));
-    benchmarks
 }
 
 /// Formate le temps écoulé

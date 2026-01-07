@@ -16,7 +16,7 @@ Built with **Tauri 2** (Rust) + **Svelte 5** + **Tailwind CSS**.
 
 ## Screenshots
 
-*Coming soon*
+_Coming soon_
 
 ## Installation
 
@@ -99,14 +99,14 @@ cargo deny check
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Backend | Rust, Tauri 2 |
-| Frontend | Svelte 5, TypeScript |
-| Styling | Tailwind CSS |
-| Database | SQLite (via sqlx) |
-| SSH | OpenSSH (ControlMaster) |
-| Sync | rsync |
+| Component | Technology              |
+| --------- | ----------------------- |
+| Backend   | Rust, Tauri 2           |
+| Frontend  | Svelte 5, TypeScript    |
+| Styling   | Tailwind CSS            |
+| Database  | SQLite (via sqlx)       |
+| SSH       | OpenSSH (ControlMaster) |
+| Sync      | rsync                   |
 
 ## Project Structure
 
