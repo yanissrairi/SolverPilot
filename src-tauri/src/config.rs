@@ -77,13 +77,14 @@ impl AppConfig {
     }
 
     /// Charge la configuration depuis `<project_root>/config.toml`
+    /// Utilise zero-copy parsing (toml 0.9+) pour moins d'allocations mémoire
     pub fn load() -> Result<Self, String> {
         let config_path = Self::project_root().join("config.toml");
 
-        let content = std::fs::read_to_string(&config_path)
+        let bytes = std::fs::read(&config_path)
             .map_err(|e| format!("Erreur lecture {}: {e}", config_path.display()))?;
 
-        toml::from_str(&content)
+        toml::de::from_slice(&bytes)
             .map_err(|e| format!("Erreur parsing {}: {e}", config_path.display()))
     }
 
