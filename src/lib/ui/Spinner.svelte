@@ -9,7 +9,7 @@
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-6 h-6',
-    lg: 'w-8 h-8'
+    lg: 'w-8 h-8',
   };
 </script>
 
@@ -21,14 +21,7 @@
   role="status"
   aria-label="Loading"
 >
-  <circle
-    class="opacity-25"
-    cx="12"
-    cy="12"
-    r="10"
-    stroke="currentColor"
-    stroke-width="4"
-  ></circle>
+  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
   <path
     class="opacity-75"
     fill="currentColor"

@@ -76,7 +76,7 @@
 
   // Polling
   let pollInterval: number | null = null;
-  
+
   // Error state
   let benchmarkError = $state<string | null>(null);
 
@@ -354,21 +354,21 @@
       key: 'Enter',
       ctrl: true,
       action: () => void runSelected(),
-      description: 'Run selected benchmarks'
+      description: 'Run selected benchmarks',
     });
 
     registerShortcut({
       key: 's',
       ctrl: true,
       action: () => void performSync(),
-      description: 'Sync code'
+      description: 'Sync code',
     });
 
     registerShortcut({
       key: 'a',
       ctrl: true,
       action: toggleAll,
-      description: 'Select/Deselect all'
+      description: 'Select/Deselect all',
     });
 
     registerShortcut({
@@ -376,14 +376,16 @@
       action: () => {
         if (focusedBenchmark) toggleBenchmark(focusedBenchmark.name);
       },
-      description: 'Toggle selection'
+      description: 'Toggle selection',
     });
 
     registerShortcut({
       key: 'l',
       ctrl: true,
-      action: () => { autoScroll = !autoScroll; },
-      description: 'Toggle auto-scroll'
+      action: () => {
+        autoScroll = !autoScroll;
+      },
+      description: 'Toggle auto-scroll',
     });
 
     registerShortcut({
@@ -394,7 +396,7 @@
           showPassphraseModal = false;
           return;
         }
-        
+
         if (selectedHistoryJob) {
           selectedHistoryJob = null;
           return;
@@ -410,7 +412,7 @@
           return;
         }
       },
-      description: 'Close/Deselect'
+      description: 'Close/Deselect',
     });
 
     void init();
@@ -423,113 +425,133 @@
   });
 </script>
 
-<MainLayout 
-  {activeProject} 
-  onProjectChange={handleProjectChange}
->
+<MainLayout {activeProject} onProjectChange={handleProjectChange}>
   {#snippet headerChildren()}
-      <!-- SSH Status -->
-      <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5">
-        <span class="text-slate-400">SSH</span>
-        {#if sshReady}
-          <span class="flex items-center gap-1.5 text-emerald-400">
-            <span class="relative flex h-2.5 w-2.5">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            Connected
+    <!-- SSH Status -->
+    <div
+      class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5"
+    >
+      <span class="text-slate-400">SSH</span>
+      {#if sshReady}
+        <span class="flex items-center gap-1.5 text-emerald-400">
+          <span class="relative flex h-2.5 w-2.5">
+            <span
+              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+            ></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
           </span>
-        {:else}
-          <span class="flex items-center gap-1.5 text-red-400">
-            <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
-            Disconnected
-          </span>
+          Connected
+        </span>
+      {:else}
+        <span class="flex items-center gap-1.5 text-red-400">
+          <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
+          Disconnected
+        </span>
+      {/if}
+    </div>
+
+    <!-- Sync Status -->
+    {#if activeProject}
+      <div
+        class="flex items-center gap-3 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5"
+      >
+        <span class="text-slate-400">Sync</span>
+
+        {#if syncStatus.type === 'Checking'}
+          <span class="text-yellow-400 animate-pulse">Checking...</span>
+        {:else if syncStatus.type === 'UpToDate'}
+          <span class="text-emerald-400 flex items-center gap-1">
+            <svg
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg
+            > Up to date</span
+          >
+        {:else if syncStatus.type === 'Modified'}
+          <span class="text-amber-400">{syncStatus.data.count} changes</span>
+          <button
+            onclick={performSync}
+            disabled={isSyncing}
+            class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-0.5 rounded transition-colors uppercase tracking-wider"
+          >
+            Sync
+          </button>
+        {:else if syncStatus.type === 'Syncing'}
+          <span class="text-blue-400 animate-pulse">Syncing...</span>
+        {:else if syncStatus.type === 'Error'}
+          <span class="text-red-400" title={syncStatus.data.message}>Error</span>
+        {/if}
+
+        {#if syncStatus.type !== 'Modified' && syncStatus.type !== 'Syncing' && syncStatus.type !== 'Checking'}
+          <button
+            onclick={refreshSync}
+            class="opacity-50 hover:opacity-100 transition-opacity"
+            title="Check Sync"
+          >
+            <svg
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              ><path
+                d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"
+              /></svg
+            >
+          </button>
         {/if}
       </div>
-
-      <!-- Sync Status -->
-      {#if activeProject}
-        <div class="flex items-center gap-3 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5">
-          <span class="text-slate-400">Sync</span>
-
-          {#if syncStatus.type === 'Checking'}
-            <span class="text-yellow-400 animate-pulse">Checking...</span>
-          {:else if syncStatus.type === 'UpToDate'}
-            <span class="text-emerald-400 flex items-center gap-1" > <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Up to date</span>
-          {:else if syncStatus.type === 'Modified'}
-            <span class="text-amber-400">{syncStatus.data.count} changes</span>
-            <button
-              onclick={performSync}
-              disabled={isSyncing}
-              class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-0.5 rounded transition-colors uppercase tracking-wider"
-            >
-              Sync
-            </button>
-          {:else if syncStatus.type === 'Syncing'}
-            <span class="text-blue-400 animate-pulse">Syncing...</span>
-          {:else if syncStatus.type === 'Error'}
-            <span class="text-red-400" title={syncStatus.data.message}>Error</span>
-          {/if}
-
-          {#if syncStatus.type !== 'Modified' && syncStatus.type !== 'Syncing' && syncStatus.type !== 'Checking'}
-            <button
-              onclick={refreshSync}
-              class="opacity-50 hover:opacity-100 transition-opacity"
-              title="Check Sync"
-            >
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" /></svg>
-            </button>
-          {/if}
-        </div>
-      {/if}
+    {/if}
   {/snippet}
 
   {#snippet leftPanel()}
-      <BenchmarkList
-        {benchmarks}
-        {selectedBenchmarks}
-        {focusedBenchmark}
-        {activeProject}
-        {isRunning}
-        bind:benchmarkError
-        onadd={addBenchmarkFile}
-        onrefresh={refreshBenchmarks}
-        ontoggle={toggleBenchmark}
-        ontoggleall={toggleAll}
-        onfocus={focusBenchmark}
-        onremove={removeBenchmark}
-        onrun={runSelected}
-      />
+    <BenchmarkList
+      {benchmarks}
+      {selectedBenchmarks}
+      {focusedBenchmark}
+      {activeProject}
+      {isRunning}
+      bind:benchmarkError
+      onadd={addBenchmarkFile}
+      onrefresh={refreshBenchmarks}
+      ontoggle={toggleBenchmark}
+      ontoggleall={toggleAll}
+      onfocus={focusBenchmark}
+      onremove={removeBenchmark}
+      onrun={runSelected}
+    />
   {/snippet}
 
   {#snippet middlePanel()}
-      <div class="h-full flex flex-col min-h-0 glass-panel">
-        <JobMonitor
-          {currentJobStatus}
-          {isRunning}
-          {selectedHistoryJob}
-          bind:autoScroll
-          onstop={handleStop}
-          onkill={handleKill}
-          onbacktolist={() => (selectedHistoryJob = null)}
-        />
-        <div class="h-px bg-white/5 my-0"></div>
-        <HistoryPanel
-          {history}
-          {selectedHistoryJob}
-          onselect={(job: Job) => (selectedHistoryJob = job)}
-          onrefresh={refreshHistory}
-        />
-      </div>
+    <div class="h-full flex flex-col min-h-0 glass-panel">
+      <JobMonitor
+        {currentJobStatus}
+        {isRunning}
+        {selectedHistoryJob}
+        bind:autoScroll
+        onstop={handleStop}
+        onkill={handleKill}
+        onbacktolist={() => (selectedHistoryJob = null)}
+      />
+      <div class="h-px bg-white/5 my-0"></div>
+      <HistoryPanel
+        {history}
+        {selectedHistoryJob}
+        onselect={(job: Job) => (selectedHistoryJob = job)}
+        onrefresh={refreshHistory}
+      />
+    </div>
   {/snippet}
 
   {#snippet rightPanel()}
-      <DependencyPanel
-        analysis={dependencyAnalysis}
-        isLoading={isLoadingDeps}
-        {activeProject}
-        onDependencyAdded={reanalyzeDependencies}
-      />
+    <DependencyPanel
+      analysis={dependencyAnalysis}
+      isLoading={isLoadingDeps}
+      {activeProject}
+      onDependencyAdded={reanalyzeDependencies}
+    />
   {/snippet}
 </MainLayout>
 
@@ -539,7 +561,13 @@
     <div class="glass-panel w-full max-w-md mx-4 p-6">
       <div class="flex items-center gap-3 mb-6">
         <div class="p-3 bg-blue-500/20 rounded-xl">
-          <svg class="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="w-6 h-6 text-blue-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
@@ -557,7 +585,9 @@
       </div>
 
       {#if passphraseError}
-        <div class="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+        <div
+          class="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm"
+        >
           {passphraseError}
         </div>
       {/if}
@@ -592,12 +622,24 @@
               class="flex-1 btn-glass btn-primary flex items-center justify-center gap-2 py-3"
             >
               {#if isAddingKey}
-                <svg class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg
+                  class="animate-spin w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
                 Unlocking...
               {:else}
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3" />
                 </svg>
                 Unlock & Connect
@@ -607,13 +649,20 @@
         </form>
       {:else if sshKeyStatus?.type === 'InAgent'}
         <p class="text-slate-300 mb-6">
-          SSH key is loaded in agent, but connection failed. Check your network or server availability.
+          SSH key is loaded in agent, but connection failed. Check your network or server
+          availability.
         </p>
         <button
           onclick={() => init()}
           class="w-full btn-glass btn-primary flex items-center justify-center gap-2 py-3"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="w-4 h-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
             <path d="M21 3v5h-5" />
           </svg>
@@ -637,7 +686,13 @@
           onclick={() => init()}
           class="w-full btn-glass flex items-center justify-center gap-2 py-3"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="w-4 h-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
             <path d="M21 3v5h-5" />
           </svg>
@@ -654,7 +709,13 @@
     <div class="glass-panel w-full max-w-lg mx-4 p-6">
       <div class="flex items-center gap-3 mb-6">
         <div class="p-3 bg-red-500/20 rounded-xl">
-          <svg class="w-6 h-6 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="w-6 h-6 text-red-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>

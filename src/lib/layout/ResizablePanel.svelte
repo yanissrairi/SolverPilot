@@ -9,20 +9,14 @@
     children?: Snippet;
   }
 
-  let {
-    position,
-    minWidth = 200,
-    maxWidth = 600,
-    width = $bindable(),
-    children
-  }: Props = $props();
+  let { position, minWidth = 200, maxWidth = 600, width = $bindable(), children }: Props = $props();
 
   let isResizing = $state(false);
 
   function startResize(event: MouseEvent) {
     event.preventDefault();
     isResizing = true;
-    
+
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', stopResize);
     // Add a class to body to prevent text selection and ensure cursor consistency
@@ -55,7 +49,7 @@
   }
 </script>
 
-<div 
+<div
   class="glass-panel relative flex flex-col h-full overflow-hidden transition-all duration-75 ease-out"
   style="width: {width}px;"
   class:transition-none={isResizing}
@@ -71,6 +65,8 @@
     onmousedown={startResize}
   >
     <!-- Visual indicator -->
-    <div class="absolute top-1/2 -translate-y-1/2 w-1 h-8 bg-slate-600/50 rounded-full group-hover:bg-blue-400/50 transition-colors mx-auto left-0 right-0"></div>
+    <div
+      class="absolute top-1/2 -translate-y-1/2 w-1 h-8 bg-slate-600/50 rounded-full group-hover:bg-blue-400/50 transition-colors mx-auto left-0 right-0"
+    ></div>
   </div>
 </div>

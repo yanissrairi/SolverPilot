@@ -8,7 +8,7 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(deps):"
+      prefix: 'chore(deps):'
     labels:
       - dependencies
       - rust
@@ -21,7 +21,7 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(deps):"
+      prefix: 'chore(deps):'
     labels:
       - dependencies
       - javascript
@@ -34,7 +34,7 @@ updates:
       day: monday
     open-pull-requests-limit: 3
     commit-message:
-      prefix: "chore(deps):"
+      prefix: 'chore(deps):'
     labels:
       - dependencies
       - github-actions

@@ -200,7 +200,13 @@
           class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {#if addingPackage === newDepName.trim()}
-            <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="w-3.5 h-3.5 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
           {:else}
@@ -217,12 +223,26 @@
           class="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {#if isUpdatingAll}
-            <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="w-3.5 h-3.5 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
           {:else}
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+            <svg
+              class="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"
+              />
             </svg>
           {/if}
           Update
@@ -233,11 +253,23 @@
           class="flex-1 px-2 py-1.5 bg-blue-600/80 hover:bg-blue-600 rounded text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {#if isSyncing}
-            <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="w-3.5 h-3.5 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
             </svg>
           {:else}
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              class="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
           {/if}
@@ -248,7 +280,13 @@
       <!-- Unified Packages List -->
       {#if isLoadingDeps || isLoading}
         <div class="flex items-center gap-2 text-slate-500 text-xs py-4 justify-center">
-          <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            class="w-4 h-4 animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
           {isLoading ? 'Analyzing...' : 'Loading...'}
@@ -259,16 +297,32 @@
         <div class="space-y-1">
           {#each unifiedPackages as pkg (pkg.name)}
             <div
-              class="flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors group {pkg.installed ? 'text-slate-300 hover:bg-white/5' : 'text-amber-300 bg-amber-500/10'}"
+              class="flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors group {pkg.installed
+                ? 'text-slate-300 hover:bg-white/5'
+                : 'text-amber-300 bg-amber-500/10'}"
               title={pkg.installed ? 'Installed' : 'Missing - click + to add'}
             >
               {#if pkg.installed}
-                <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg
+                  class="w-3.5 h-3.5 text-emerald-400 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               {:else}
-                <svg class="w-3.5 h-3.5 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <svg
+                  class="w-3.5 h-3.5 text-amber-400 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                  />
                   <line x1="12" y1="9" x2="12" y2="13" />
                   <line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
@@ -278,17 +332,31 @@
               {#if pkg.installed}
                 <!-- Remove button -->
                 <button
-                  onclick={() => { void handleRemovePackage(pkg.name); }}
+                  onclick={() => {
+                    void handleRemovePackage(pkg.name);
+                  }}
                   disabled={removingPackage !== null}
                   class="p-1 rounded hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                   title="Remove"
                 >
                   {#if removingPackage === pkg.name}
-                    <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg
+                      class="w-3.5 h-3.5 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
                   {:else}
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg
+                      class="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                   {/if}
@@ -296,17 +364,31 @@
               {:else}
                 <!-- Add button -->
                 <button
-                  onclick={() => { void handleAddPackage(pkg.name); }}
+                  onclick={() => {
+                    void handleAddPackage(pkg.name);
+                  }}
                   disabled={addingPackage !== null}
                   class="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors disabled:opacity-50"
                   title="Add to project"
                 >
                   {#if addingPackage === pkg.name}
-                    <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg
+                      class="w-3.5 h-3.5 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
                   {:else}
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg
+                      class="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <path d="M12 5v14M5 12h14" />
                     </svg>
                   {/if}
@@ -320,8 +402,16 @@
       <!-- Local Files Section (only if has files) -->
       {#if analysis?.local_files && analysis.local_files.length > 0}
         <div class="border-t border-white/5 mt-4 pt-4">
-          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <h4
+            class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2"
+          >
+            <svg
+              class="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
               <polyline points="13 2 13 9 20 9" />
             </svg>

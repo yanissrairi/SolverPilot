@@ -15,7 +15,7 @@
     ontoggleall,
     onfocus,
     onremove,
-    onrun
+    onrun,
   } = $props<{
     benchmarks: Benchmark[];
     selectedBenchmarks: SvelteSet<string>;
@@ -44,12 +44,8 @@
         title={activeProject ? 'Add .py file' : 'Select a project first'}
         class="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"><path d="M12 5v14M5 12h14" /></svg
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          ><path d="M12 5v14M5 12h14" /></svg
         >
       </button>
       <button
@@ -58,12 +54,7 @@
         aria-label="Refresh Benchmarks"
         class="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           ><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path
             d="M21 3v5h-5"
           /></svg
@@ -82,9 +73,7 @@
           stroke="currentColor"
           stroke-width="1"
         >
-          <path
-            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-          />
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
         <p class="text-sm">Sélectionnez ou créez un projet</p>
       </div>
@@ -212,12 +201,8 @@
         >
         Running...
       {:else}
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          ><polygon points="5 3 19 12 5 21 5 3"></polygon></svg
         >
         Run {selectedBenchmarks.size} Benchmarks
       {/if}

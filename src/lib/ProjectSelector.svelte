@@ -35,39 +35,39 @@
   $effect(() => {
     void loadProjects();
   });
-  
+
   // Register shortcuts
   $effect(() => {
-      // Register Ctrl+N
-      registerShortcut({
-          key: 'n',
-          ctrl: true,
-          action: () => void openCreateModal(),
-          description: 'New Project'
-      });
+    // Register Ctrl+N
+    registerShortcut({
+      key: 'n',
+      ctrl: true,
+      action: () => void openCreateModal(),
+      description: 'New Project',
+    });
 
-      // Register Escape for local modals
-      registerShortcut({
-          key: 'Escape',
-          action: () => {
-              if (showCreateModal || showSettingsModal) {
-                  closeModals();
-              }
-          },
-          description: 'Close Project Modal'
-      });
+    // Register Escape for local modals
+    registerShortcut({
+      key: 'Escape',
+      action: () => {
+        if (showCreateModal || showSettingsModal) {
+          closeModals();
+        }
+      },
+      description: 'Close Project Modal',
+    });
 
-      return () => {
-          unregisterShortcut('n');
-          // We shouldn't unregister Escape globally if others use it...
-          // But with our current API, unregisterShortcut('Escape') removes ALL escape handlers.
-          // This is a flaw in the requested API for 'unregisterShortcut(key)'.
-          // So we simply DO NOT unregister Escape here.
-          // This causes a memory leak of the handler closure if ProjectSelector is destroyed and recreated often.
-          // But ProjectSelector is in Header, which is permanent. So it's acceptable.
-          
-          // unregisterShortcut('Escape'); // DANGEROUS
-      };
+    return () => {
+      unregisterShortcut('n');
+      // We shouldn't unregister Escape globally if others use it...
+      // But with our current API, unregisterShortcut('Escape') removes ALL escape handlers.
+      // This is a flaw in the requested API for 'unregisterShortcut(key)'.
+      // So we simply DO NOT unregister Escape here.
+      // This causes a memory leak of the handler closure if ProjectSelector is destroyed and recreated often.
+      // But ProjectSelector is in Header, which is permanent. So it's acceptable.
+
+      // unregisterShortcut('Escape'); // DANGEROUS
+    };
   });
 
   async function loadProjects() {

@@ -9,18 +9,14 @@
     class?: string;
   }
 
-  const {
-    icon,
-    title,
-    description,
-    action,
-    class: className = ''
-  }: Props = $props();
+  const { icon, title, description, action, class: className = '' }: Props = $props();
 </script>
 
 <div class="flex flex-col items-center justify-center p-8 text-center {className}">
   {#if icon}
-    <div class="mb-4 text-slate-600 dark:text-slate-500 [&>svg]:w-12 [&>svg]:h-12 [&>svg]:stroke-[1.5]">
+    <div
+      class="mb-4 text-slate-600 dark:text-slate-500 [&>svg]:w-12 [&>svg]:h-12 [&>svg]:stroke-[1.5]"
+    >
       {@render icon()}
     </div>
   {/if}

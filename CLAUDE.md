@@ -44,35 +44,36 @@ SolverPilot is a Tauri 2 desktop app for running Python optimization benchmarks 
 
 ### Backend (Rust - src-tauri/src/)
 
-| Module | Purpose |
-|--------|---------|
-| `lib.rs` | Tauri setup, registers 40+ commands |
-| `state.rs` | Thread-safe `AppState` with `Arc<Mutex<T>>` |
-| `commands.rs` | All Tauri commands (config, ssh, sync, projects, jobs) |
-| `config.rs` | Loads `config.toml`, path helpers |
-| `db.rs` | SQLite via sqlx (projects, benchmarks, jobs tables) |
-| `ssh.rs` | SSH control socket, rsync, tmux job management |
-| `project.rs` | Python project management via `uv` |
-| `python_deps.rs` | Tree-sitter Python AST analysis for imports |
-| `job.rs` | Log parsing, progress extraction `[x/y]` |
+| Module           | Purpose                                                |
+| ---------------- | ------------------------------------------------------ |
+| `lib.rs`         | Tauri setup, registers 40+ commands                    |
+| `state.rs`       | Thread-safe `AppState` with `Arc<Mutex<T>>`            |
+| `commands.rs`    | All Tauri commands (config, ssh, sync, projects, jobs) |
+| `config.rs`      | Loads `config.toml`, path helpers                      |
+| `db.rs`          | SQLite via sqlx (projects, benchmarks, jobs tables)    |
+| `ssh.rs`         | SSH control socket, rsync, tmux job management         |
+| `project.rs`     | Python project management via `uv`                     |
+| `python_deps.rs` | Tree-sitter Python AST analysis for imports            |
+| `job.rs`         | Log parsing, progress extraction `[x/y]`               |
 
 ### Frontend (Svelte 5 - src/)
 
-| Directory | Purpose |
-|-----------|---------|
-| `lib/features/` | Domain components (benchmarks, jobs, history, ssh) |
-| `lib/layout/` | MainLayout (3-panel), Header, ResizablePanel |
-| `lib/stores/` | Svelte 5 runes stores (panels, shortcuts, toast) |
-| `lib/ui/` | Reusable components (Button, Modal, Badge, Toast...) |
-| `lib/utils/` | Utilities (focus-trap, keyboard) |
-| `lib/api.ts` | Tauri invoke wrappers |
-| `lib/types.ts` | TypeScript interfaces |
+| Directory       | Purpose                                              |
+| --------------- | ---------------------------------------------------- |
+| `lib/features/` | Domain components (benchmarks, jobs, history, ssh)   |
+| `lib/layout/`   | MainLayout (3-panel), Header, ResizablePanel         |
+| `lib/stores/`   | Svelte 5 runes stores (panels, shortcuts, toast)     |
+| `lib/ui/`       | Reusable components (Button, Modal, Badge, Toast...) |
+| `lib/utils/`    | Utilities (focus-trap, keyboard)                     |
+| `lib/api.ts`    | Tauri invoke wrappers                                |
+| `lib/types.ts`  | TypeScript interfaces                                |
 
 ## Key Patterns
 
 ### Rust Backend
 
 **Error handling** - Always `Result<T, String>`, never panic:
+
 ```rust
 #[tauri::command]
 async fn my_command(state: State<'_, AppState>) -> Result<T, String> {
@@ -84,6 +85,7 @@ async fn my_command(state: State<'_, AppState>) -> Result<T, String> {
 ```
 
 **State access** - Lock then clone/use:
+
 ```rust
 let db = state.db.lock().await
     .as_ref()
@@ -94,34 +96,44 @@ let db = state.db.lock().await
 ### Svelte 5 Frontend
 
 **Runes** (not legacy stores):
+
 ```typescript
-let items = $state<Item[]>([])           // reactive state
-let count = $derived(items.length)        // computed
-$effect(() => { /* side effect */ })      // auto-cleanup
+let items = $state<Item[]>([]); // reactive state
+let count = $derived(items.length); // computed
+$effect(() => {
+  /* side effect */
+}); // auto-cleanup
 ```
 
 **Component props**:
+
 ```svelte
 <script lang="ts">
-  import type { Snippet } from 'svelte'
-  interface Props { title: string; children?: Snippet }
-  const { title, children }: Props = $props()
+  import type { Snippet } from 'svelte';
+  interface Props {
+    title: string;
+    children?: Snippet;
+  }
+  const { title, children }: Props = $props();
 </script>
 ```
 
 **API calls**:
+
 ```typescript
-import * as api from '$lib/api'
-const result = await api.listProjects()
+import * as api from '$lib/api';
+const result = await api.listProjects();
 ```
 
 ## Linting Rules
 
 **Rust** (strict clippy in Cargo.toml):
+
 - `unwrap_used` and `expect_used` are **denied** - use `ok_or()` or `?`
 - `pedantic`, `nursery`, `correctness` enabled
 
 **TypeScript/Svelte** (eslint.config.js):
+
 - `@typescript-eslint/no-explicit-any`: error
 - `@typescript-eslint/no-floating-promises`: error
 - Strict type checking enabled

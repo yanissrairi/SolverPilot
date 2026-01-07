@@ -11,12 +11,12 @@
 >
   {#each toast.toasts as item (item.id)}
     <div
-        animate:flip={{ duration: 300 }}
-        in:fly={{ x: 200, duration: 300 }}
-        out:fly={{ x: 200, duration: 300, opacity: 0 }}
-        class="flex w-full flex-col items-center space-y-4 sm:items-end"
+      animate:flip={{ duration: 300 }}
+      in:fly={{ x: 200, duration: 300 }}
+      out:fly={{ x: 200, duration: 300, opacity: 0 }}
+      class="flex w-full flex-col items-center space-y-4 sm:items-end"
     >
-        <ToastItem {item} />
+      <ToastItem {item} />
     </div>
   {/each}
 </div>
