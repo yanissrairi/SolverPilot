@@ -32,7 +32,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "process", "sync", "macr
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 
 # Config
-toml = "0.8"
+toml = "0.9"
 
 # Utilities
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
