@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Project } from './types';
-  import * as api from './api';
-  import { registerShortcut, unregisterShortcut } from './stores/shortcuts.svelte';
+  import type { Project } from '../../types';
+  import * as api from '../../api';
+  import { registerShortcut, unregisterShortcut } from '../../stores/shortcuts.svelte';
 
   // Portal action - moves element to body to escape backdrop-filter containing block
   function portal(node: HTMLElement) {

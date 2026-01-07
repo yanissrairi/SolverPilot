@@ -32,7 +32,7 @@
     SshKeyStatus,
     DependencyAnalysis,
   } from './lib/types';
-  import DependencyPanel from './lib/DependencyPanel.svelte';
+  import DependencyPanel from './lib/features/dependencies/DependencyPanel.svelte';
   import MainLayout from './lib/layout/MainLayout.svelte';
   import BenchmarkList from './lib/features/benchmarks/BenchmarkList.svelte';
   import JobMonitor from './lib/features/jobs/JobMonitor.svelte';

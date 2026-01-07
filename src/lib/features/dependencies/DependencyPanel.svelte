@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { DependencyAnalysis, LocalDependency, Project } from './types';
-  import * as api from './api';
+  import type { DependencyAnalysis, LocalDependency, Project } from '../../types';
+  import * as api from '../../api';
 
   interface Props {
     analysis: DependencyAnalysis | null;
