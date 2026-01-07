@@ -139,9 +139,12 @@
     }
   }
 
-  async function completeInit() {
+  async function completeInit(skipInit = false) {
     try {
-      await initSsh();
+      // Skip initSsh() if we just called addSshKey() with passphrase
+      if (!skipInit) {
+        await initSsh();
+      }
       sshReady = true;
       showPassphraseModal = false;
       passphraseError = '';
@@ -172,7 +175,8 @@
     try {
       await addSshKey(passphrase);
       passphrase = '';
-      await completeInit();
+      // Skip initSsh() since addSshKey() already created the manager with passphrase
+      await completeInit(true);
     } catch (e) {
       passphraseError = String(e);
     } finally {
