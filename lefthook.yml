@@ -1,0 +1,28 @@
+# Lefthook - Git hooks manager
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    prettier:
+      glob: '*.{ts,svelte,js,json,md,yml,yaml,css,html}'
+      run: bunx prettier --check {staged_files}
+
+    eslint:
+      glob: '*.{ts,svelte,js}'
+      run: bunx eslint {staged_files}
+
+    cargo-fmt:
+      root: src-tauri/
+      glob: '*.rs'
+      run: cargo fmt --check
+
+pre-push:
+  parallel: true
+  commands:
+    cargo-clippy:
+      root: src-tauri/
+      run: cargo clippy --all-targets -- -D warnings
+
+    svelte-check:
+      run: bun run check
