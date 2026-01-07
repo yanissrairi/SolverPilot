@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import {
+    checkConfigExists,
     loadConfig,
     initSsh,
     closeSsh,
@@ -31,11 +32,13 @@
     SshKeyStatus,
     DependencyAnalysis,
   } from './lib/types';
-  import DependencyPanel from './lib/DependencyPanel.svelte';
+  import DependencyPanel from './lib/features/dependencies/DependencyPanel.svelte';
   import MainLayout from './lib/layout/MainLayout.svelte';
   import BenchmarkList from './lib/features/benchmarks/BenchmarkList.svelte';
   import JobMonitor from './lib/features/jobs/JobMonitor.svelte';
   import HistoryPanel from './lib/features/history/HistoryPanel.svelte';
+  import SetupWizard from './lib/features/setup/SetupWizard.svelte';
+  import ToastContainer from './lib/ui/ToastContainer.svelte';
   import { setupGlobalShortcuts, registerShortcut } from './lib/stores/shortcuts.svelte';
 
   // --- STATE ---
@@ -56,8 +59,10 @@
   let passphraseError = $state('');
   let isAddingKey = $state(false);
 
-  // Config error
+  // Config error / Setup wizard
   let configError = $state<string | null>(null);
+  let needsSetup = $state(false);
+  let checkingConfig = $state(true);
 
   // Active Job
   let currentJobStatus = $state<JobStatusResponse | null>(null);
@@ -84,19 +89,33 @@
 
   async function init() {
     configError = null;
+    checkingConfig = true;
+
     try {
+      // Check if config exists first
+      const exists = await checkConfigExists();
+      if (!exists) {
+        needsSetup = true;
+        checkingConfig = false;
+        return;
+      }
+
       await loadConfig();
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       if (errMsg.includes('missing field')) {
-        const match = /missing field `(\w+)`/.exec(errMsg);
+        const regex = /missing field `(\w+)`/;
+        const match = regex.exec(errMsg);
         const field = match?.[1] ?? 'unknown';
         configError = `Configuration invalide: le champ "${field}" est manquant dans config.toml.\nVoir config.example.toml pour référence.`;
       } else {
         configError = `Erreur de configuration: ${errMsg}`;
       }
+      checkingConfig = false;
       return;
     }
+
+    checkingConfig = false;
 
     try {
       sshKeyStatus = await checkSshKeyStatus();
@@ -120,9 +139,12 @@
     }
   }
 
-  async function completeInit() {
+  async function completeInit(skipInit = false) {
     try {
-      await initSsh();
+      // Skip initSsh() if we just called addSshKey() with passphrase
+      if (!skipInit) {
+        await initSsh();
+      }
       sshReady = true;
       showPassphraseModal = false;
       passphraseError = '';
@@ -153,7 +175,8 @@
     try {
       await addSshKey(passphrase);
       passphrase = '';
-      await completeInit();
+      // Skip initSsh() since addSshKey() already created the manager with passphrase
+      await completeInit(true);
     } catch (e) {
       passphraseError = String(e);
     } finally {
@@ -418,6 +441,11 @@
     void init();
   });
 
+  async function handleSetupComplete() {
+    needsSetup = false;
+    await init();
+  }
+
   onDestroy(() => {
     if (pollInterval !== null) clearInterval(pollInterval);
     void closeSsh();
@@ -425,139 +453,158 @@
   });
 </script>
 
-<MainLayout {activeProject} onProjectChange={handleProjectChange}>
-  {#snippet headerChildren()}
-    <!-- SSH Status -->
-    <div
-      class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5"
-    >
-      <span class="text-slate-400">SSH</span>
-      {#if sshReady}
-        <span class="flex items-center gap-1.5 text-emerald-400">
-          <span class="relative flex h-2.5 w-2.5">
-            <span
-              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
-            ></span>
-            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </span>
-          Connected
-        </span>
-      {:else}
-        <span class="flex items-center gap-1.5 text-red-400">
-          <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
-          Disconnected
-        </span>
-      {/if}
-    </div>
+<!-- Toast notifications -->
+<ToastContainer />
 
-    <!-- Sync Status -->
-    {#if activeProject}
+{#if checkingConfig}
+  <!-- Loading state while checking config -->
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="text-center space-y-4">
       <div
-        class="flex items-center gap-3 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5"
+        class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"
+      ></div>
+      <p class="text-slate-400">Chargement...</p>
+    </div>
+  </div>
+{:else if needsSetup}
+  <!-- Setup wizard for first-time configuration -->
+  <SetupWizard onComplete={handleSetupComplete} />
+{:else}
+  <!-- Main application -->
+  <MainLayout {activeProject} onProjectChange={handleProjectChange}>
+    {#snippet headerChildren()}
+      <!-- SSH Status -->
+      <div
+        class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5"
       >
-        <span class="text-slate-400">Sync</span>
-
-        {#if syncStatus.type === 'Checking'}
-          <span class="text-yellow-400 animate-pulse">Checking...</span>
-        {:else if syncStatus.type === 'UpToDate'}
-          <span class="text-emerald-400 flex items-center gap-1">
-            <svg
-              class="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg
-            > Up to date</span
-          >
-        {:else if syncStatus.type === 'Modified'}
-          <span class="text-amber-400">{syncStatus.data.count} changes</span>
-          <button
-            onclick={performSync}
-            disabled={isSyncing}
-            class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-0.5 rounded transition-colors uppercase tracking-wider"
-          >
-            Sync
-          </button>
-        {:else if syncStatus.type === 'Syncing'}
-          <span class="text-blue-400 animate-pulse">Syncing...</span>
-        {:else if syncStatus.type === 'Error'}
-          <span class="text-red-400" title={syncStatus.data.message}>Error</span>
-        {/if}
-
-        {#if syncStatus.type !== 'Modified' && syncStatus.type !== 'Syncing' && syncStatus.type !== 'Checking'}
-          <button
-            onclick={refreshSync}
-            class="opacity-50 hover:opacity-100 transition-opacity"
-            title="Check Sync"
-          >
-            <svg
-              class="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              ><path
-                d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"
-              /></svg
-            >
-          </button>
+        <span class="text-slate-400">SSH</span>
+        {#if sshReady}
+          <span class="flex items-center gap-1.5 text-emerald-400">
+            <span class="relative flex h-2.5 w-2.5">
+              <span
+                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+              ></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            Connected
+          </span>
+        {:else}
+          <span class="flex items-center gap-1.5 text-red-400">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
+            Disconnected
+          </span>
         {/if}
       </div>
-    {/if}
-  {/snippet}
 
-  {#snippet leftPanel()}
-    <BenchmarkList
-      {benchmarks}
-      {selectedBenchmarks}
-      {focusedBenchmark}
-      {activeProject}
-      {isRunning}
-      bind:benchmarkError
-      onadd={addBenchmarkFile}
-      onrefresh={refreshBenchmarks}
-      ontoggle={toggleBenchmark}
-      ontoggleall={toggleAll}
-      onfocus={focusBenchmark}
-      onremove={removeBenchmark}
-      onrun={runSelected}
-    />
-  {/snippet}
+      <!-- Sync Status -->
+      {#if activeProject}
+        <div
+          class="flex items-center gap-3 px-3 py-1.5 rounded-full bg-slate-900/50 border border-white/5"
+        >
+          <span class="text-slate-400">Sync</span>
 
-  {#snippet middlePanel()}
-    <div class="h-full flex flex-col min-h-0 glass-panel">
-      <JobMonitor
-        {currentJobStatus}
+          {#if syncStatus.type === 'Checking'}
+            <span class="text-yellow-400 animate-pulse">Checking...</span>
+          {:else if syncStatus.type === 'UpToDate'}
+            <span class="text-emerald-400 flex items-center gap-1">
+              <svg
+                class="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg
+              > Up to date</span
+            >
+          {:else if syncStatus.type === 'Modified'}
+            <span class="text-amber-400">{syncStatus.data.count} changes</span>
+            <button
+              onclick={performSync}
+              disabled={isSyncing}
+              class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2 py-0.5 rounded-sm transition-colors uppercase tracking-wider"
+            >
+              Sync
+            </button>
+          {:else if syncStatus.type === 'Syncing'}
+            <span class="text-blue-400 animate-pulse">Syncing...</span>
+          {:else if syncStatus.type === 'Error'}
+            <span class="text-red-400" title={syncStatus.data.message}>Error</span>
+          {/if}
+
+          {#if syncStatus.type !== 'Modified' && syncStatus.type !== 'Syncing' && syncStatus.type !== 'Checking'}
+            <button
+              onclick={refreshSync}
+              class="opacity-50 hover:opacity-100 transition-opacity"
+              title="Check Sync"
+            >
+              <svg
+                class="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                ><path
+                  d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"
+                /></svg
+              >
+            </button>
+          {/if}
+        </div>
+      {/if}
+    {/snippet}
+
+    {#snippet leftPanel()}
+      <BenchmarkList
+        {benchmarks}
+        {selectedBenchmarks}
+        {focusedBenchmark}
+        {activeProject}
         {isRunning}
-        {selectedHistoryJob}
-        bind:autoScroll
-        onstop={handleStop}
-        onkill={handleKill}
-        onbacktolist={() => (selectedHistoryJob = null)}
+        bind:benchmarkError
+        onadd={addBenchmarkFile}
+        onrefresh={refreshBenchmarks}
+        ontoggle={toggleBenchmark}
+        ontoggleall={toggleAll}
+        onfocus={focusBenchmark}
+        onremove={removeBenchmark}
+        onrun={runSelected}
       />
-      <div class="h-px bg-white/5 my-0"></div>
-      <HistoryPanel
-        {history}
-        {selectedHistoryJob}
-        onselect={(job: Job) => (selectedHistoryJob = job)}
-        onrefresh={refreshHistory}
-      />
-    </div>
-  {/snippet}
+    {/snippet}
 
-  {#snippet rightPanel()}
-    <DependencyPanel
-      analysis={dependencyAnalysis}
-      isLoading={isLoadingDeps}
-      {activeProject}
-      onDependencyAdded={reanalyzeDependencies}
-    />
-  {/snippet}
-</MainLayout>
+    {#snippet middlePanel()}
+      <div class="h-full flex flex-col min-h-0 glass-panel">
+        <JobMonitor
+          {currentJobStatus}
+          {isRunning}
+          {selectedHistoryJob}
+          bind:autoScroll
+          onstop={handleStop}
+          onkill={handleKill}
+          onbacktolist={() => (selectedHistoryJob = null)}
+        />
+        <div class="h-px bg-white/5 my-0"></div>
+        <HistoryPanel
+          {history}
+          {selectedHistoryJob}
+          onselect={(job: Job) => (selectedHistoryJob = job)}
+          onrefresh={refreshHistory}
+        />
+      </div>
+    {/snippet}
+
+    {#snippet rightPanel()}
+      <DependencyPanel
+        analysis={dependencyAnalysis}
+        isLoading={isLoadingDeps}
+        {activeProject}
+        onDependencyAdded={reanalyzeDependencies}
+      />
+    {/snippet}
+  </MainLayout>
+{/if}
 
 <!-- Passphrase Modal -->
 {#if showPassphraseModal}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50">
     <div class="glass-panel w-full max-w-md mx-4 p-6">
       <div class="flex items-center gap-3 mb-6">
         <div class="p-3 bg-blue-500/20 rounded-xl">
@@ -610,7 +657,7 @@
               bind:value={passphrase}
               disabled={isAddingKey}
               placeholder="Enter your SSH key passphrase"
-              class="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50"
+              class="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50"
               autofocus
             />
           </div>
@@ -672,12 +719,12 @@
         <p class="text-slate-300 mb-6">
           {#if sshKeyStatus?.type === 'NoAgent'}
             The SSH agent is not running. Start it with:
-            <code class="block mt-2 p-2 bg-black/40 rounded text-blue-300 text-sm font-mono">
+            <code class="block mt-2 p-2 bg-black/40 rounded-sm text-blue-300 text-sm font-mono">
               eval $(ssh-agent) && ssh-add
             </code>
           {:else if sshKeyStatus?.type === 'NoKey'}
             No SSH key found at the expected location. Create one with:
-            <code class="block mt-2 p-2 bg-black/40 rounded text-blue-300 text-sm font-mono">
+            <code class="block mt-2 p-2 bg-black/40 rounded-sm text-blue-300 text-sm font-mono">
               ssh-keygen -t ed25519
             </code>
           {/if}
@@ -705,7 +752,7 @@
 
 <!-- Config Error Modal -->
 {#if configError}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50">
     <div class="glass-panel w-full max-w-lg mx-4 p-6">
       <div class="flex items-center gap-3 mb-6">
         <div class="p-3 bg-red-500/20 rounded-xl">
@@ -733,7 +780,7 @@
 
       <div class="p-4 bg-slate-800/50 rounded-lg mb-6">
         <p class="text-sm text-slate-300 mb-2">Fichier attendu :</p>
-        <code class="text-xs text-blue-300 bg-black/40 px-2 py-1 rounded">./config.toml</code>
+        <code class="text-xs text-blue-300 bg-black/40 px-2 py-1 rounded-sm">./config.toml</code>
         <p class="text-xs text-slate-500 mt-2">Copiez config.example.toml et adaptez-le.</p>
       </div>
 

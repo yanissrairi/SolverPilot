@@ -1,3 +1,4 @@
+use crate::paths;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -16,10 +17,16 @@ pub struct AppConfig {
 pub struct SshConfig {
     pub host: String,
     pub user: String,
-    pub use_agent: bool,
-    /// Chemin de la clé SSH (optionnel, défaut: `~/.ssh/id_rsa`)
+    /// Port SSH (défaut: 22)
+    #[serde(default = "default_port")]
+    pub port: u16,
+    /// Chemin de la clé SSH (optionnel, défaut: auto-détecté depuis ~/.ssh/config)
     #[serde(default = "default_key_path")]
     pub key_path: String,
+}
+
+const fn default_port() -> u16 {
+    22
 }
 
 fn default_key_path() -> String {
@@ -68,18 +75,16 @@ impl Default for ToolsConfig {
 }
 
 impl AppConfig {
-    /// Retourne le chemin racine du projet (parent de src-tauri/)
-    pub fn project_root() -> PathBuf {
-        // CARGO_MANIFEST_DIR = chemin vers src-tauri/ à la compilation
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        // Remonter d'un niveau pour avoir la racine du projet
-        manifest_dir.parent().unwrap_or(&manifest_dir).to_path_buf()
-    }
-
-    /// Charge la configuration depuis `<project_root>/config.toml`
-    /// Utilise zero-copy parsing (toml 0.9+) pour moins d'allocations mémoire
+    /// Charge la configuration depuis le répertoire de config système.
+    ///
+    /// Chemins par OS:
+    /// - Linux: `~/.config/app.solverpilot/config.toml`
+    /// - macOS: `~/Library/Application Support/app.solverpilot/config.toml`
+    /// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\config.toml`
+    ///
+    /// Utilise zero-copy parsing (toml 0.9+) pour moins d'allocations mémoire.
     pub fn load() -> Result<Self, String> {
-        let config_path = Self::project_root().join("config.toml");
+        let config_path = paths::config_path()?;
 
         let bytes = std::fs::read(&config_path)
             .map_err(|e| format!("Erreur lecture {}: {e}", config_path.display()))?;
@@ -114,8 +119,39 @@ impl AppConfig {
         format!("{}/results", self.remote.remote_base)
     }
 
-    /// Chemin de la base de données (dans le dossier projet)
+    /// Chemin de la base de données dans le répertoire de données système.
+    ///
+    /// Chemins par OS:
+    /// - Linux: `~/.local/share/app.solverpilot/solver-pilot.db`
+    /// - macOS: `~/Library/Application Support/app.solverpilot/solver-pilot.db`
+    /// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\solver-pilot.db`
     pub fn db_path() -> Result<PathBuf, String> {
-        Ok(Self::project_root().join("solver-pilot.db"))
+        paths::db_path()
+    }
+
+    /// Sauvegarde la configuration dans le fichier config.toml
+    pub fn save(&self) -> Result<(), String> {
+        let config_path = paths::config_path()?;
+
+        // Créer le dossier parent si nécessaire
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Erreur création dossier config: {e}"))?;
+        }
+
+        // Sérialiser en TOML
+        let toml_content = toml::to_string_pretty(self)
+            .map_err(|e| format!("Erreur sérialisation config: {e}"))?;
+
+        // Écrire le fichier
+        std::fs::write(&config_path, toml_content)
+            .map_err(|e| format!("Erreur écriture config: {e}"))?;
+
+        Ok(())
+    }
+
+    /// Vérifie si le fichier config existe
+    pub fn exists() -> Result<bool, String> {
+        Ok(paths::config_path()?.exists())
     }
 }

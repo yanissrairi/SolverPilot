@@ -15,6 +15,30 @@ import type {
 // Config
 // =============================================================================
 
+/**
+ * Vérifie si le fichier de configuration existe
+ */
+export async function checkConfigExists(): Promise<boolean> {
+  return invoke('check_config_exists');
+}
+
+/**
+ * Retourne le chemin du fichier de configuration
+ */
+export async function getConfigPath(): Promise<string> {
+  return invoke('get_config_path');
+}
+
+/**
+ * Sauvegarde la configuration
+ */
+export async function saveConfig(config: AppConfig): Promise<void> {
+  return invoke('save_config', { config });
+}
+
+/**
+ * Charge la configuration depuis le fichier
+ */
 export async function loadConfig(): Promise<AppConfig> {
   return invoke('load_config');
 }
@@ -33,6 +57,13 @@ export async function closeSsh(): Promise<void> {
 
 export async function testSsh(): Promise<boolean> {
   return invoke('test_ssh');
+}
+
+/**
+ * Test SSH direct (pour le wizard de setup)
+ */
+export async function testSshDirect(passphrase?: string): Promise<void> {
+  return invoke('test_ssh_direct', { passphrase: passphrase ?? null });
 }
 
 export async function checkSshKeyStatus(): Promise<SshKeyStatus> {

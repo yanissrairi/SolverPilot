@@ -6,7 +6,7 @@ export interface AppConfig {
   ssh: {
     host: string;
     user: string;
-    use_agent: boolean;
+    port: number;
     key_path: string;
   };
   remote: {

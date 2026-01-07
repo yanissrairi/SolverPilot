@@ -38,13 +38,13 @@
       <input
         type={showPassword ? 'text' : 'password'}
         bind:value={passphrase}
-        class="w-full bg-slate-950/50 border border-slate-700 rounded-lg py-2.5 pl-3 pr-10 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+        class="w-full bg-slate-950/50 border border-slate-700 rounded-lg py-2.5 pl-3 pr-10 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
         placeholder="Passphrase"
         onkeydown={e => e.key === 'Enter' && passphrase && handleConfirm()}
       />
       <button
         type="button"
-        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1.5 rounded focus:outline-none focus:text-white"
+        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1.5 rounded-sm focus:outline-hidden focus:text-white"
         onclick={() => (showPassword = !showPassword)}
         aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
       >

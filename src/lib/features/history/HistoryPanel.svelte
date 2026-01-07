@@ -25,7 +25,7 @@
   <div class="flex-1 overflow-y-auto p-0 custom-scrollbar">
     <table class="w-full text-left text-sm text-slate-400">
       <thead
-        class="bg-slate-900/50 text-xs uppercase font-semibold text-slate-500 sticky top-0 backdrop-blur-sm"
+        class="bg-slate-900/50 text-xs uppercase font-semibold text-slate-500 sticky top-0 backdrop-blur-xs"
       >
         <tr>
           <th class="px-4 py-2">ID</th>

@@ -1,65 +1,85 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0f172a; /* Slate 900 */
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 }
 
-@layer components {
+@utility glass {
   /* Glassmorphism Utilities */
-  .glass {
-    @apply bg-slate-900/60 backdrop-blur-md border border-white/10 shadow-xl;
-  }
+  @apply bg-slate-900/60 backdrop-blur-md border border-white/10 shadow-xl;
+}
 
-  .glass-panel {
-    @apply bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-lg;
-  }
+@utility glass-panel {
+  @apply bg-slate-900/80 backdrop-blur-xs border border-slate-700/50 rounded-lg;
+}
 
-  .glass-header {
-    @apply bg-slate-900/90 backdrop-blur-sm border-b border-slate-700/50;
-  }
+@utility glass-header {
+  @apply bg-slate-900/90 backdrop-blur-xs border-b border-slate-700/50;
+}
 
-  .btn-glass {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+@utility btn-glass {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
            border border-white/10 hover:border-white/20 hover:bg-white/5 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
-  }
+}
 
-  .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 border-transparent;
-  }
+@utility btn-primary {
+  @apply bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 border-transparent;
+}
 
-  .btn-danger {
-    @apply bg-red-600/80 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 border-transparent;
-  }
+@utility btn-danger {
+  @apply bg-red-600/80 hover:bg-red-500 text-white shadow-lg shadow-red-900/20 border-transparent;
+}
 
+@utility custom-scrollbar {
   /* Custom Scrollbar for Logs */
-  .custom-scrollbar::-webkit-scrollbar {
+  &::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-track {
+  &::-webkit-scrollbar-track {
     @apply bg-slate-950 rounded-lg;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
+  &::-webkit-scrollbar-thumb {
     @apply bg-slate-700 rounded-lg border-2 border-slate-950;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  &::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-600;
   }
 }
 
+@layer utilities {
+  :root {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    color-scheme: light dark;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #0f172a; /* Slate 900 */
+  }
+}
+
 body {
-  @apply bg-gradient-to-br from-slate-950 via-slate-900 to-black min-h-screen selection:bg-blue-500/30;
+  @apply bg-linear-to-br from-slate-950 via-slate-900 to-black min-h-screen selection:bg-blue-500/30;
   margin: 0;
   display: flex;
   place-items: center;

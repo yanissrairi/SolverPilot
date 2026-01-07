@@ -1,30 +1,38 @@
 //! Module de gestion des projets Python avec uv
 //!
 //! Chaque projet a son propre environnement Python géré par uv,
-//! stocké dans `SolverPilot/projects/<nom>/`
+//! stocké dans le répertoire de données système.
 
 use std::path::PathBuf;
 use tokio::process::Command;
 
-use crate::config::AppConfig;
+use crate::paths;
 
 // =============================================================================
 // Paths
 // =============================================================================
 
-/// Retourne le dossier des projets (SolverPilot/projects/)
-pub fn projects_dir() -> PathBuf {
-    AppConfig::project_root().join("projects")
+/// Retourne le dossier des projets.
+///
+/// Chemins par OS:
+/// - Linux: `~/.local/share/app.solverpilot/projects/`
+/// - macOS: `~/Library/Application Support/app.solverpilot/projects/`
+/// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\projects\`
+///
+/// # Errors
+/// Returns an error if paths were not initialized.
+pub fn projects_dir() -> Result<PathBuf, String> {
+    paths::projects_dir()
 }
 
 /// Retourne le chemin d'un projet spécifique
-pub fn project_path(name: &str) -> PathBuf {
-    projects_dir().join(name)
+pub fn project_path(name: &str) -> Result<PathBuf, String> {
+    Ok(projects_dir()?.join(name))
 }
 
 /// Retourne le chemin du pyproject.toml d'un projet
-pub fn pyproject_path(name: &str) -> PathBuf {
-    project_path(name).join("pyproject.toml")
+pub fn pyproject_path(name: &str) -> Result<PathBuf, String> {
+    Ok(project_path(name)?.join("pyproject.toml"))
 }
 
 // =============================================================================
@@ -33,7 +41,7 @@ pub fn pyproject_path(name: &str) -> PathBuf {
 
 /// Crée un nouveau projet avec `uv init`
 pub async fn create_project(name: &str, python_version: &str, uv_path: &str) -> Result<(), String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
 
     // Créer le dossier
     std::fs::create_dir_all(&project_dir)
@@ -60,7 +68,7 @@ pub async fn create_project(name: &str, python_version: &str, uv_path: &str) -> 
 
 /// Supprime le dossier d'un projet
 pub fn delete_project_dir(name: &str) -> Result<(), String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
     if project_dir.exists() {
         std::fs::remove_dir_all(&project_dir)
             .map_err(|e| format!("Erreur suppression dossier projet: {e}"))?;
@@ -74,7 +82,7 @@ pub fn delete_project_dir(name: &str) -> Result<(), String> {
 
 /// Change la version Python d'un projet (met à jour pyproject.toml + uv python pin + uv lock)
 pub async fn set_python_version(name: &str, version: &str, uv_path: &str) -> Result<(), String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
     let uv = shellexpand::tilde(uv_path).to_string();
 
     // 1. Update requires-python in pyproject.toml (allows downgrade)
@@ -158,7 +166,7 @@ pub async fn list_python_versions(uv_path: &str) -> Result<Vec<String>, String> 
 
 /// Ajoute une dépendance avec `uv add`
 pub async fn add_dependency(name: &str, package: &str, uv_path: &str) -> Result<String, String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
     let uv = shellexpand::tilde(uv_path).to_string();
 
     let output = Command::new(&uv)
@@ -179,7 +187,7 @@ pub async fn add_dependency(name: &str, package: &str, uv_path: &str) -> Result<
 
 /// Supprime une dépendance avec `uv remove`
 pub async fn remove_dependency(name: &str, package: &str, uv_path: &str) -> Result<String, String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
     let uv = shellexpand::tilde(uv_path).to_string();
 
     let output = Command::new(&uv)
@@ -200,7 +208,7 @@ pub async fn remove_dependency(name: &str, package: &str, uv_path: &str) -> Resu
 
 /// Met à jour toutes les dépendances avec `uv lock --upgrade`
 pub async fn update_dependencies(name: &str, uv_path: &str) -> Result<String, String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
     let uv = shellexpand::tilde(uv_path).to_string();
 
     let output = Command::new(&uv)
@@ -221,7 +229,7 @@ pub async fn update_dependencies(name: &str, uv_path: &str) -> Result<String, St
 
 /// Synchronise l'environnement avec `uv sync`
 pub async fn sync_environment(name: &str, uv_path: &str) -> Result<String, String> {
-    let project_dir = project_path(name);
+    let project_dir = project_path(name)?;
     let uv = shellexpand::tilde(uv_path).to_string();
 
     let output = Command::new(&uv)
@@ -242,7 +250,7 @@ pub async fn sync_environment(name: &str, uv_path: &str) -> Result<String, Strin
 
 /// Lit les dépendances depuis pyproject.toml
 pub fn read_project_dependencies(name: &str) -> Result<Vec<String>, String> {
-    let pyproject = pyproject_path(name);
+    let pyproject = pyproject_path(name)?;
 
     let content = std::fs::read_to_string(&pyproject)
         .map_err(|e| format!("Erreur lecture pyproject.toml: {e}"))?;
@@ -277,5 +285,5 @@ pub fn read_project_dependencies(name: &str) -> Result<Vec<String>, String> {
 
 /// Vérifie si le dossier projet existe
 pub fn project_exists(name: &str) -> bool {
-    project_path(name).exists()
+    project_path(name).map(|p| p.exists()).unwrap_or(false)
 }

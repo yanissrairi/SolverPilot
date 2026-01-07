@@ -2,6 +2,7 @@ pub mod commands;
 pub mod config;
 pub mod db;
 pub mod job;
+pub mod paths;
 pub mod project;
 pub mod python_deps;
 pub mod ssh;
@@ -21,17 +22,27 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // Initialize application paths (config, data directories)
+            paths::init(app).map_err(|e| {
+                tracing::error!("Failed to initialize paths: {e}");
+                e
+            })?;
+
             // Initialiser l'état de l'application
             app.manage(state::AppState::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Config
+            commands::check_config_exists,
+            commands::get_config_path,
+            commands::save_config,
             commands::load_config,
             // SSH
             commands::init_ssh,
             commands::close_ssh,
             commands::test_ssh,
+            commands::test_ssh_direct,
             commands::check_ssh_key_status,
             commands::add_ssh_key,
             // Sync

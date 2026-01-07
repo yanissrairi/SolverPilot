@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Project } from './types';
-  import * as api from './api';
-  import { registerShortcut, unregisterShortcut } from './stores/shortcuts.svelte';
+  import type { Project } from '../../types';
+  import * as api from '../../api';
+  import { registerShortcut, unregisterShortcut } from '../../stores/shortcuts.svelte';
 
   // Portal action - moves element to body to escape backdrop-filter containing block
   function portal(node: HTMLElement) {
@@ -201,7 +201,7 @@
     <div class="relative">
       <select
         id="project-select"
-        class="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 pr-8 text-sm focus:outline-none focus:border-blue-500 appearance-none cursor-pointer min-w-[160px]"
+        class="bg-zinc-800 border border-zinc-700 rounded-sm px-3 py-1.5 pr-8 text-sm focus:outline-hidden focus:border-blue-500 appearance-none cursor-pointer min-w-[160px]"
         value={activeProject?.id ?? ''}
         onchange={e => {
           const id = Number(e.currentTarget.value);
@@ -228,11 +228,11 @@
     </div>
 
     {#if activeProject}
-      <span class="text-xs text-gray-500 bg-zinc-800 px-2 py-1 rounded">
+      <span class="text-xs text-gray-500 bg-zinc-800 px-2 py-1 rounded-sm">
         Python {activeProject.python_version}
       </span>
       <button
-        class="p-1.5 hover:bg-zinc-700 rounded text-gray-400 hover:text-white transition-colors"
+        class="p-1.5 hover:bg-zinc-700 rounded-sm text-gray-400 hover:text-white transition-colors"
         title="Paramètres du projet"
         onclick={openSettingsModal}
       >
@@ -254,7 +254,7 @@
     {/if}
 
     <button
-      class="p-1.5 hover:bg-zinc-700 rounded text-green-400 hover:text-green-300 transition-colors"
+      class="p-1.5 hover:bg-zinc-700 rounded-sm text-green-400 hover:text-green-300 transition-colors"
       title="Nouveau projet (Ctrl+N)"
       onclick={openCreateModal}
     >
@@ -286,7 +286,7 @@
 
       {#if error}
         <div
-          class="bg-red-900/30 border border-red-500 text-red-300 px-3 py-2 rounded mb-4 text-sm"
+          class="bg-red-900/30 border border-red-500 text-red-300 px-3 py-2 rounded-sm mb-4 text-sm"
         >
           {error}
         </div>
@@ -298,7 +298,7 @@
           <input
             id="project-name"
             type="text"
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+            class="w-full bg-zinc-800 border border-zinc-700 rounded-sm px-3 py-2 focus:outline-hidden focus:border-blue-500"
             placeholder="mon-projet"
             bind:value={newProjectName}
             disabled={isLoading}
@@ -311,7 +311,7 @@
           >
           <select
             id="python-version"
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+            class="w-full bg-zinc-800 border border-zinc-700 rounded-sm px-3 py-2 focus:outline-hidden focus:border-blue-500"
             bind:value={newPythonVersion}
             disabled={isLoading}
           >
@@ -334,7 +334,7 @@
           Annuler
         </button>
         <button
-          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded transition-colors disabled:opacity-50"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-sm transition-colors disabled:opacity-50"
           onclick={createProject}
           disabled={isLoading || !newProjectName.trim()}
         >
@@ -366,7 +366,7 @@
 
       {#if error}
         <div
-          class="bg-red-900/30 border border-red-500 text-red-300 px-3 py-2 rounded mb-4 text-sm"
+          class="bg-red-900/30 border border-red-500 text-red-300 px-3 py-2 rounded-sm mb-4 text-sm"
         >
           {error}
         </div>
@@ -379,7 +379,7 @@
           >
           <select
             id="settings-python-version"
-            class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+            class="w-full bg-zinc-800 border border-zinc-700 rounded-sm px-3 py-2 focus:outline-hidden focus:border-blue-500"
             value={activeProject.python_version}
             onchange={e => void changePythonVersion(e.currentTarget.value)}
             disabled={isLoading}
@@ -392,7 +392,7 @@
 
         <div class="pt-4 border-t border-zinc-700">
           <button
-            class="w-full px-4 py-2 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded transition-colors disabled:opacity-50"
+            class="w-full px-4 py-2 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded-sm transition-colors disabled:opacity-50"
             onclick={deleteCurrentProject}
             disabled={isLoading}
           >
