@@ -15,9 +15,9 @@ use crate::paths;
 /// Retourne le dossier des projets.
 ///
 /// Chemins par OS:
-/// - Linux: `~/.local/share/dev.yaniss.solver-pilot/projects/`
-/// - macOS: `~/Library/Application Support/dev.yaniss.solver-pilot/projects/`
-/// - Windows: `C:\Users\<user>\AppData\Roaming\dev.yaniss.solver-pilot\projects\`
+/// - Linux: `~/.local/share/app.solverpilot/projects/`
+/// - macOS: `~/Library/Application Support/app.solverpilot/projects/`
+/// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\projects\`
 ///
 /// # Errors
 /// Returns an error if paths were not initialized.

@@ -72,9 +72,9 @@ impl AppConfig {
     /// Charge la configuration depuis le répertoire de config système.
     ///
     /// Chemins par OS:
-    /// - Linux: `~/.config/dev.yaniss.solver-pilot/config.toml`
-    /// - macOS: `~/Library/Application Support/dev.yaniss.solver-pilot/config.toml`
-    /// - Windows: `C:\Users\<user>\AppData\Roaming\dev.yaniss.solver-pilot\config.toml`
+    /// - Linux: `~/.config/app.solverpilot/config.toml`
+    /// - macOS: `~/Library/Application Support/app.solverpilot/config.toml`
+    /// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\config.toml`
     ///
     /// Utilise zero-copy parsing (toml 0.9+) pour moins d'allocations mémoire.
     pub fn load() -> Result<Self, String> {
@@ -116,9 +116,9 @@ impl AppConfig {
     /// Chemin de la base de données dans le répertoire de données système.
     ///
     /// Chemins par OS:
-    /// - Linux: `~/.local/share/dev.yaniss.solver-pilot/solver-pilot.db`
-    /// - macOS: `~/Library/Application Support/dev.yaniss.solver-pilot/solver-pilot.db`
-    /// - Windows: `C:\Users\<user>\AppData\Roaming\dev.yaniss.solver-pilot\solver-pilot.db`
+    /// - Linux: `~/.local/share/app.solverpilot/solver-pilot.db`
+    /// - macOS: `~/Library/Application Support/app.solverpilot/solver-pilot.db`
+    /// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\solver-pilot.db`
     pub fn db_path() -> Result<PathBuf, String> {
         paths::db_path()
     }
