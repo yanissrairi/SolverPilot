@@ -17,6 +17,7 @@
   let sshUser = $state('');
   let sshPort = $state(22);
   let sshKeyPath = $state('');
+  let sshPassphrase = $state('');
   let remoteBase = $state('~/benchmarks');
   let uvPath = $state('~/.local/bin/uv');
 
@@ -95,7 +96,8 @@
 
       // Save temporarily to test
       await saveConfig(tempConfig);
-      await testSshDirect();
+      // Pass passphrase if provided (for encrypted keys)
+      await testSshDirect(sshPassphrase || undefined);
 
       connectionTested = true;
       connectionSuccess = true;
@@ -238,6 +240,23 @@
           </Button>
         </div>
         <p class="text-xs text-slate-500">Chemin vers votre cle privee SSH</p>
+      </div>
+
+      <!-- SSH Passphrase (optional) -->
+      <div class="space-y-1">
+        <label for="ssh-passphrase" class="text-sm text-slate-400">
+          Passphrase <span class="text-slate-600">(optionnel)</span>
+        </label>
+        <input
+          id="ssh-passphrase"
+          type="password"
+          bind:value={sshPassphrase}
+          placeholder="Laissez vide si la cle n'est pas chiffree"
+          class="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <p class="text-xs text-slate-500">
+          Passphrase de dechiffrement de la cle SSH (si chiffree)
+        </p>
       </div>
 
       <!-- SSH Help -->

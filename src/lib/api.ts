@@ -62,8 +62,8 @@ export async function testSsh(): Promise<boolean> {
 /**
  * Test SSH direct (pour le wizard de setup)
  */
-export async function testSshDirect(): Promise<void> {
-  return invoke('test_ssh_direct');
+export async function testSshDirect(passphrase?: string): Promise<void> {
+  return invoke('test_ssh_direct', { passphrase: passphrase ?? null });
 }
 
 export async function checkSshKeyStatus(): Promise<SshKeyStatus> {

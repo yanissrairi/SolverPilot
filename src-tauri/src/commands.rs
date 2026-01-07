@@ -122,7 +122,10 @@ pub async fn test_ssh(state: State<'_, AppState>) -> Result<bool, String> {
 
 /// Test SSH direct (sans pool) - pour le wizard de setup
 #[tauri::command]
-pub async fn test_ssh_direct(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn test_ssh_direct(
+    state: State<'_, AppState>,
+    passphrase: Option<String>,
+) -> Result<(), String> {
     let config = state
         .config
         .lock()
@@ -131,7 +134,13 @@ pub async fn test_ssh_direct(state: State<'_, AppState>) -> Result<(), String> {
         .ok_or("Config non chargée")?;
 
     let key_path = ssh::get_ssh_key_path(&config);
-    let auth = ssh::SshAuth::key(key_path);
+
+    // Use passphrase if provided, otherwise try without
+    let auth = if let Some(pass) = passphrase {
+        ssh::SshAuth::key_with_passphrase(key_path, pass)
+    } else {
+        ssh::SshAuth::key(key_path)
+    };
 
     ssh::test_connection_direct(&config, &auth)
         .await
