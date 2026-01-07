@@ -1,3 +1,4 @@
+use crate::paths;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -68,18 +69,16 @@ impl Default for ToolsConfig {
 }
 
 impl AppConfig {
-    /// Retourne le chemin racine du projet (parent de src-tauri/)
-    pub fn project_root() -> PathBuf {
-        // CARGO_MANIFEST_DIR = chemin vers src-tauri/ à la compilation
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        // Remonter d'un niveau pour avoir la racine du projet
-        manifest_dir.parent().unwrap_or(&manifest_dir).to_path_buf()
-    }
-
-    /// Charge la configuration depuis `<project_root>/config.toml`
-    /// Utilise zero-copy parsing (toml 0.9+) pour moins d'allocations mémoire
+    /// Charge la configuration depuis le répertoire de config système.
+    ///
+    /// Chemins par OS:
+    /// - Linux: `~/.config/dev.yaniss.solver-pilot/config.toml`
+    /// - macOS: `~/Library/Application Support/dev.yaniss.solver-pilot/config.toml`
+    /// - Windows: `C:\Users\<user>\AppData\Roaming\dev.yaniss.solver-pilot\config.toml`
+    ///
+    /// Utilise zero-copy parsing (toml 0.9+) pour moins d'allocations mémoire.
     pub fn load() -> Result<Self, String> {
-        let config_path = Self::project_root().join("config.toml");
+        let config_path = paths::config_path()?;
 
         let bytes = std::fs::read(&config_path)
             .map_err(|e| format!("Erreur lecture {}: {e}", config_path.display()))?;
@@ -114,8 +113,13 @@ impl AppConfig {
         format!("{}/results", self.remote.remote_base)
     }
 
-    /// Chemin de la base de données (dans le dossier projet)
+    /// Chemin de la base de données dans le répertoire de données système.
+    ///
+    /// Chemins par OS:
+    /// - Linux: `~/.local/share/dev.yaniss.solver-pilot/solver-pilot.db`
+    /// - macOS: `~/Library/Application Support/dev.yaniss.solver-pilot/solver-pilot.db`
+    /// - Windows: `C:\Users\<user>\AppData\Roaming\dev.yaniss.solver-pilot\solver-pilot.db`
     pub fn db_path() -> Result<PathBuf, String> {
-        Ok(Self::project_root().join("solver-pilot.db"))
+        paths::db_path()
     }
 }

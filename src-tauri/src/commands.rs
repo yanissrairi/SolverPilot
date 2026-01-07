@@ -122,7 +122,7 @@ pub async fn check_sync_status(state: State<'_, AppState>) -> Result<SyncStatus,
         .await?
         .ok_or("Projet non trouvé")?;
 
-    let project_dir = project::project_path(&proj.name);
+    let project_dir = project::project_path(&proj.name)?;
 
     match ssh::rsync_dry_run(&config, &proj.name, &project_dir).await {
         Ok(files) => {
@@ -167,7 +167,7 @@ pub async fn sync_code(state: State<'_, AppState>) -> Result<(), String> {
         .await?
         .ok_or("Projet non trouvé")?;
 
-    let project_dir = project::project_path(&proj.name);
+    let project_dir = project::project_path(&proj.name)?;
 
     ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await
 }
@@ -212,7 +212,7 @@ pub async fn sync_benchmark_deps(
         .ok_or("Impossible de déterminer le dossier parent")?;
 
     // pyproject.toml du projet
-    let pyproject_path = project::pyproject_path(&proj.name);
+    let pyproject_path = project::pyproject_path(&proj.name)?;
     let pyproject = if pyproject_path.exists() {
         Some(pyproject_path.as_path())
     } else {
@@ -228,7 +228,7 @@ pub async fn sync_benchmark_deps(
     let file_count = files.len();
 
     // D'abord sync le projet (pyproject.toml, uv.lock)
-    let project_dir = project::project_path(&proj.name);
+    let project_dir = project::project_path(&proj.name)?;
     ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await?;
 
     // Puis sync les fichiers du benchmark
@@ -547,7 +547,7 @@ pub async fn get_benchmark_dependencies(
         .ok_or("Impossible de déterminer le dossier parent")?;
 
     // pyproject.toml du projet
-    let pyproject_path = project::pyproject_path(&proj.name);
+    let pyproject_path = project::pyproject_path(&proj.name)?;
     let pyproject = if pyproject_path.exists() {
         Some(pyproject_path.as_path())
     } else {
@@ -640,7 +640,7 @@ pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, S
     let pending = db::load_pending_jobs(&pool).await?;
     if let Some(job) = pending.into_iter().next() {
         // Sync le projet avant de lancer (pyproject.toml, uv.lock)
-        let project_dir = project::project_path(&proj.name);
+        let project_dir = project::project_path(&proj.name)?;
         ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await?;
 
         // Lancer le job

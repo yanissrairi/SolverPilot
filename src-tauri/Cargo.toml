@@ -36,7 +36,6 @@ toml = "0.9"
 
 # Utilities
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-directories = "6"
 regex = "1"
 shellexpand = "3"
 tracing = "0.1"
