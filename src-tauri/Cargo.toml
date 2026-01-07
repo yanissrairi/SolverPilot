@@ -44,7 +44,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 
 # Python analysis
 tree-sitter = "0.24"
-tree-sitter-python = "0.23"
+tree-sitter-python = "0.25"
 streaming-iterator = "0.1"
 
 # =============================================================================
