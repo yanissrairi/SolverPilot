@@ -73,11 +73,8 @@ deny = [
 ]
 
 # STRICT: No skip - we want to SEE all duplicates as warnings
-skip = [
-    # cmake required by aws-lc-sys (russh crypto backend build dependency)
-    # Unavoidable: AWS-LC needs cmake to compile, no pure-Rust alternative
-    { crate = "cmake", reason = "build dependency for aws-lc-sys (russh)" },
-]
+# Note: cmake is a build dependency (aws-lc-sys) but not banned, so no skip needed
+skip = []
 skip-tree = []
 
 # ============================================================================
