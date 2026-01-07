@@ -25,7 +25,7 @@ pub struct SshConfig {
     pub key_path: String,
 }
 
-fn default_port() -> u16 {
+const fn default_port() -> u16 {
     22
 }
 

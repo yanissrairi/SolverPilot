@@ -17,7 +17,7 @@ pub struct SshTransfer {
 
 impl SshTransfer {
     /// Create a new file transfer manager
-    pub fn new(config: AppConfig) -> Self {
+    pub const fn new(config: AppConfig) -> Self {
         Self { config }
     }
 
@@ -90,7 +90,7 @@ impl SshTransfer {
             SshError::TransferError {
                 source: "file list".to_string(),
                 destination: files_list_path.display().to_string(),
-                reason: format!("Failed to write file list: {}", e),
+                reason: format!("Failed to write file list: {e}"),
             }
         })?;
 
@@ -128,7 +128,7 @@ impl SshTransfer {
             .map_err(|e| SshError::TransferError {
                 source: remote_path.to_string(),
                 destination: local_path.to_string(),
-                reason: format!("Failed to execute rsync: {}", e),
+                reason: format!("Failed to execute rsync: {e}"),
             })?;
 
         if !output.status.success() {
@@ -136,7 +136,7 @@ impl SshTransfer {
             return Err(SshError::TransferError {
                 source: remote_path.to_string(),
                 destination: local_path.to_string(),
-                reason: format!("rsync failed: {}", stderr),
+                reason: format!("rsync failed: {stderr}"),
             });
         }
 
@@ -169,7 +169,7 @@ impl SshTransfer {
             .map_err(|e| SshError::TransferError {
                 source: local_path.to_string(),
                 destination: remote_path.to_string(),
-                reason: format!("Failed to execute rsync: {}", e),
+                reason: format!("Failed to execute rsync: {e}"),
             })?;
 
         if !output.status.success() {
@@ -177,7 +177,7 @@ impl SshTransfer {
             return Err(SshError::TransferError {
                 source: local_path.to_string(),
                 destination: remote_path.to_string(),
-                reason: format!("rsync failed: {}", stderr),
+                reason: format!("rsync failed: {stderr}"),
             });
         }
 
@@ -210,7 +210,7 @@ impl SshTransfer {
             .map_err(|e| SshError::TransferError {
                 source: local_path.to_string(),
                 destination: remote_path.to_string(),
-                reason: format!("Failed to execute rsync: {}", e),
+                reason: format!("Failed to execute rsync: {e}"),
             })?;
 
         if !output.status.success() {
@@ -218,7 +218,7 @@ impl SshTransfer {
             return Err(SshError::TransferError {
                 source: local_path.to_string(),
                 destination: remote_path.to_string(),
-                reason: format!("rsync failed: {}", stderr),
+                reason: format!("rsync failed: {stderr}"),
             });
         }
 
@@ -262,7 +262,7 @@ impl SshTransfer {
             .map_err(|e| SshError::TransferError {
                 source: local_path.clone(),
                 destination: remote_path.clone(),
-                reason: format!("Failed to execute rsync dry-run: {}", e),
+                reason: format!("Failed to execute rsync dry-run: {e}"),
             })?;
 
         if !output.status.success() {
@@ -277,7 +277,7 @@ impl SshTransfer {
         let files: Vec<String> = stdout
             .lines()
             .filter(|line| !line.is_empty() && !line.ends_with('/'))
-            .map(|line| line.to_string())
+            .map(ToString::to_string)
             .collect();
 
         Ok(files)

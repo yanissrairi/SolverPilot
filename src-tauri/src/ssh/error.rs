@@ -94,7 +94,7 @@ impl fmt::Display for SshError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ConnectionFailed { host, port, reason } => {
-                write!(f, "Connection to {}:{} failed: {}", host, port, reason)
+                write!(f, "Connection to {host}:{port} failed: {reason}")
             }
             Self::AuthenticationFailed {
                 username,
@@ -103,15 +103,14 @@ impl fmt::Display for SshError {
             } => {
                 write!(
                     f,
-                    "Authentication failed for user '{}' with {}: {}",
-                    username, method, reason
+                    "Authentication failed for user '{username}' with {method}: {reason}"
                 )
             }
             Self::KeyError { path, reason } => {
-                write!(f, "Key error for '{}': {}", path, reason)
+                write!(f, "Key error for '{path}': {reason}")
             }
             Self::ChannelError { operation, reason } => {
-                write!(f, "Channel operation '{}' failed: {}", operation, reason)
+                write!(f, "Channel operation '{operation}' failed: {reason}")
             }
             Self::CommandFailed {
                 command,
@@ -121,11 +120,10 @@ impl fmt::Display for SshError {
                 if let Some(code) = exit_code {
                     write!(
                         f,
-                        "Command '{}' failed with exit code {}: {}",
-                        command, code, stderr
+                        "Command '{command}' failed with exit code {code}: {stderr}"
                     )
                 } else {
-                    write!(f, "Command '{}' failed: {}", command, stderr)
+                    write!(f, "Command '{command}' failed: {stderr}")
                 }
             }
             Self::TransferError {
@@ -135,15 +133,14 @@ impl fmt::Display for SshError {
             } => {
                 write!(
                     f,
-                    "Transfer from '{}' to '{}' failed: {}",
-                    source, destination, reason
+                    "Transfer from '{source}' to '{destination}' failed: {reason}"
                 )
             }
             Self::PoolError { reason } => {
-                write!(f, "Connection pool error: {}", reason)
+                write!(f, "Connection pool error: {reason}")
             }
             Self::ConfigError { field, reason } => {
-                write!(f, "Configuration error in '{}': {}", field, reason)
+                write!(f, "Configuration error in '{field}': {reason}")
             }
             Self::Timeout {
                 operation,
@@ -151,17 +148,16 @@ impl fmt::Display for SshError {
             } => {
                 write!(
                     f,
-                    "Operation '{}' timed out after {} seconds",
-                    operation, duration_secs
+                    "Operation '{operation}' timed out after {duration_secs} seconds"
                 )
             }
-            Self::RusshError(e) => write!(f, "SSH protocol error: {}", e),
-            Self::IoError(e) => write!(f, "I/O error: {}", e),
+            Self::RusshError(e) => write!(f, "SSH protocol error: {e}"),
+            Self::IoError(e) => write!(f, "I/O error: {e}"),
             Self::Other { context, source } => {
                 if let Some(src) = source {
-                    write!(f, "{}: {}", context, src)
+                    write!(f, "{context}: {src}")
                 } else {
-                    write!(f, "{}", context)
+                    write!(f, "{context}")
                 }
             }
         }
@@ -276,6 +272,7 @@ impl SshError {
     }
 
     /// Add context to an existing error
+    #[must_use]
     pub fn with_context(self, context: impl Into<String>) -> Self {
         Self::Other {
             context: context.into(),

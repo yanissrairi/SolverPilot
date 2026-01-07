@@ -91,9 +91,9 @@ impl SshAuth {
                 }
 
                 // Load key with optional passphrase
-                let passphrase_str = passphrase.as_ref().map(|p| p.as_str());
+                let passphrase_str = passphrase.as_ref().map(SecureString::as_str);
                 load_secret_key(&expanded_path, passphrase_str)
-                    .map_err(|e| SshError::key_error(path, format!("Failed to load key: {}", e)))
+                    .map_err(|e| SshError::key_error(path, format!("Failed to load key: {e}")))
             }
             Self::Agent { key_path } => {
                 // For agent mode, we still need to load the public key to identify it
@@ -105,7 +105,7 @@ impl SshAuth {
 
                 // Load without passphrase (agent handles it)
                 load_secret_key(&expanded_path, None).map_err(|e| {
-                    SshError::key_error(key_path, format!("Failed to load key for agent: {}", e))
+                    SshError::key_error(key_path, format!("Failed to load key for agent: {e}"))
                 })
             }
         }
@@ -117,7 +117,7 @@ pub struct SshHandler;
 
 impl SshHandler {
     /// Create a new SSH handler
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -204,10 +204,10 @@ pub fn get_ssh_key_path(config: &AppConfig) -> String {
     expand_tilde(&config.ssh.key_path)
 }
 
-/// Parse ~/.ssh/config to find IdentityFile for a host
+/// Parse ~/.ssh/config to find `IdentityFile` for a host
 fn get_identity_file_from_ssh_config(host: &str) -> Option<String> {
     let home = std::env::var("HOME").ok()?;
-    let config_path = format!("{}/.ssh/config", home);
+    let config_path = format!("{home}/.ssh/config");
     let content = std::fs::read_to_string(&config_path).ok()?;
 
     let mut in_matching_host = false;
@@ -242,7 +242,7 @@ fn get_identity_file_from_ssh_config(host: &str) -> Option<String> {
 fn expand_tilde(path: &str) -> String {
     if path.starts_with("~/") {
         if let Ok(home) = std::env::var("HOME") {
-            return path.replacen("~", &home, 1);
+            return path.replacen('~', &home, 1);
         }
     } else if path.starts_with('~') && path.len() > 1 {
         // Handle ~user/ paths (basic support)
@@ -252,7 +252,9 @@ fn expand_tilde(path: &str) -> String {
             if let Ok(home_base) = std::env::var("HOME") {
                 if let Some(parent) = Path::new(&home_base).parent() {
                     let user_home = parent.join(username);
-                    return format!("{}{}", user_home.display(), &path[slash_pos..]);
+                    let user_home_display = user_home.display();
+                    let path_suffix = &path[slash_pos..];
+                    return format!("{user_home_display}{path_suffix}");
                 }
             }
         }
@@ -281,7 +283,7 @@ mod tests {
     fn test_expand_tilde() {
         // Test basic tilde expansion
         if let Ok(home) = std::env::var("HOME") {
-            assert_eq!(expand_tilde("~/test"), format!("{}/test", home));
+            assert_eq!(expand_tilde("~/test"), format!("{home}/test"));
             assert_eq!(expand_tilde(&home), home);
         }
 

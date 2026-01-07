@@ -58,12 +58,12 @@ impl SshManager {
     }
 
     /// Get the command executor
-    pub fn executor(&self) -> &SshExecutor {
+    pub const fn executor(&self) -> &SshExecutor {
         &self.executor
     }
 
     /// Get the file transfer manager
-    pub fn transfer(&self) -> &SshTransfer {
+    pub const fn transfer(&self) -> &SshTransfer {
         &self.transfer
     }
 
@@ -192,7 +192,7 @@ pub fn check_key_status(_config: &AppConfig, auth: &SshAuth) -> Result<SshKeySta
         SshAuth::Key { path, passphrase } => {
             let expanded = if path.starts_with("~/") {
                 path.replacen(
-                    "~",
+                    '~',
                     &std::env::var("HOME").unwrap_or_else(|_| ".".to_string()),
                     1,
                 )
@@ -221,7 +221,7 @@ pub fn check_key_status(_config: &AppConfig, auth: &SshAuth) -> Result<SshKeySta
         SshAuth::Agent { key_path } => {
             let expanded = if key_path.starts_with("~/") {
                 key_path.replacen(
-                    "~",
+                    '~',
                     &std::env::var("HOME").unwrap_or_else(|_| ".".to_string()),
                     1,
                 )

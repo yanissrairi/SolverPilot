@@ -22,7 +22,7 @@ pub struct CommandResult {
 
 impl CommandResult {
     /// Check if the command succeeded (exit code 0)
-    pub fn success(&self) -> bool {
+    pub const fn success(&self) -> bool {
         self.exit_code == 0
     }
 
@@ -48,14 +48,14 @@ pub struct SshExecutor {
 
 impl SshExecutor {
     /// Create a new executor from a connection pool
-    pub fn new(pool: SshPool) -> Self {
+    pub const fn new(pool: SshPool) -> Self {
         Self { pool }
     }
 
     /// Execute a command and return the result
     pub async fn execute_raw(&self, command: &str) -> Result<CommandResult> {
-        let mut conn = self.pool.get().await?;
-        execute_command_on_connection(&mut conn, command, Duration::from_secs(300)).await
+        let conn = self.pool.get().await?;
+        execute_command_on_connection(&conn, command, Duration::from_secs(300)).await
     }
 
     /// Execute a command and return stdout on success
@@ -65,8 +65,8 @@ impl SshExecutor {
 
     /// Execute a command with custom timeout
     pub async fn execute_with_timeout(&self, command: &str, timeout: Duration) -> Result<String> {
-        let mut conn = self.pool.get().await?;
-        execute_command_on_connection(&mut conn, command, timeout)
+        let conn = self.pool.get().await?;
+        execute_command_on_connection(&conn, command, timeout)
             .await?
             .into_result()
     }
@@ -97,38 +97,35 @@ impl SshExecutor {
 
     /// Check if a tmux session exists
     pub async fn tmux_session_exists(&self, session_name: &str) -> Result<bool> {
-        let cmd = format!(
-            "tmux has-session -t {} 2>/dev/null && echo yes || echo no",
-            session_name
-        );
+        let cmd = format!("tmux has-session -t {session_name} 2>/dev/null && echo yes || echo no");
         let output = self.execute_ignore_status(&cmd).await?;
         Ok(output.trim() == "yes")
     }
 
     /// Send Ctrl-C to a tmux session
     pub async fn tmux_send_ctrl_c(&self, session_name: &str) -> Result<()> {
-        let cmd = format!("tmux send-keys -t {} C-c", session_name);
+        let cmd = format!("tmux send-keys -t {session_name} C-c");
         self.execute_ignore_status(&cmd).await?;
         Ok(())
     }
 
     /// Kill a tmux session
     pub async fn tmux_kill_session(&self, session_name: &str) -> Result<()> {
-        let cmd = format!("tmux kill-session -t {}", session_name);
+        let cmd = format!("tmux kill-session -t {session_name}");
         self.execute_ignore_status(&cmd).await?;
         Ok(())
     }
 
     /// Get job logs using tail
     pub async fn tail_logs(&self, log_file: &str, lines: u32) -> Result<String> {
-        let cmd = format!("tail -n {} {} 2>/dev/null || echo ''", lines, log_file);
+        let cmd = format!("tail -n {lines} {log_file} 2>/dev/null || echo ''");
         self.execute_ignore_status(&cmd).await
     }
 }
 
 /// Execute a command on an existing connection
 async fn execute_command_on_connection(
-    conn: &mut SshConnection,
+    conn: &SshConnection,
     command: &str,
     timeout: Duration,
 ) -> Result<CommandResult> {
@@ -166,7 +163,6 @@ async fn execute_command_on_connection(
                 ChannelMsg::ExitStatus { exit_status } => {
                     exit_code = Some(exit_status);
                 }
-                ChannelMsg::Eof => {}
                 ChannelMsg::Close => {
                     break;
                 }

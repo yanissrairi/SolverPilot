@@ -5,6 +5,7 @@
 
 use crate::config::AppConfig;
 use russh::client::{Config, Handle};
+use russh::Preferred;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,13 +24,13 @@ pub struct SshConnectionManager {
 
 impl SshConnectionManager {
     /// Create a new connection manager
-    pub fn new(config: AppConfig, auth: SshAuth) -> Result<Self> {
+    pub fn new(config: AppConfig, auth: SshAuth) -> Self {
         let client_config = Arc::new(Self::create_client_config());
-        Ok(Self {
+        Self {
             config,
             client_config,
             auth,
-        })
+        }
     }
 
     /// Create russh client configuration with optimal settings
@@ -42,7 +43,7 @@ impl SshConnectionManager {
             keepalive_interval: Some(Duration::from_secs(30)),
 
             // Use default secure algorithms (Ed25519, Curve25519, ChaCha20-Poly1305, AES-GCM)
-            preferred: Default::default(),
+            preferred: Preferred::default(),
 
             // Flow control settings
             window_size: 2_097_152,      // 2MB window
@@ -129,7 +130,7 @@ impl bb8::ManageConnection for SshConnectionManager {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => {
                 tracing::warn!("Connection health check failed: {}", e);
-                Err(SshError::other(format!("Health check failed: {}", e)))
+                Err(SshError::other(format!("Health check failed: {e}")))
             }
             Err(_) => {
                 tracing::warn!("Connection health check timed out");
@@ -154,7 +155,7 @@ pub struct SshPool {
 impl SshPool {
     /// Create a new SSH connection pool
     pub async fn new(config: AppConfig, auth: SshAuth, max_size: u32) -> Result<Self> {
-        let manager = SshConnectionManager::new(config.clone(), auth)?;
+        let manager = SshConnectionManager::new(config.clone(), auth);
 
         let pool = bb8::Pool::builder()
             .max_size(max_size)
@@ -164,7 +165,7 @@ impl SshPool {
             .build(manager)
             .await
             .map_err(|e| SshError::PoolError {
-                reason: format!("Failed to create pool: {}", e),
+                reason: format!("Failed to create pool: {e}"),
             })?;
 
         tracing::info!(
@@ -180,7 +181,7 @@ impl SshPool {
     /// Get a connection from the pool
     pub async fn get(&self) -> Result<bb8::PooledConnection<'_, SshConnectionManager>> {
         self.pool.get().await.map_err(|e| SshError::PoolError {
-            reason: format!("Failed to get connection from pool: {}", e),
+            reason: format!("Failed to get connection from pool: {e}"),
         })
     }
 

@@ -814,7 +814,7 @@ pub async fn stop_job(state: State<'_, AppState>) -> Result<(), String> {
     if let Some(job_id) = job_id {
         get_ssh_manager!(state)
             .executor()
-            .tmux_send_ctrl_c(&format!("job_{}", job_id))
+            .tmux_send_ctrl_c(&format!("job_{job_id}"))
             .await
             .map_err(|e| e.to_string())?;
     }
@@ -843,7 +843,7 @@ pub async fn kill_job(state: State<'_, AppState>) -> Result<(), String> {
     if let Some(job_id) = job_id {
         get_ssh_manager!(state)
             .executor()
-            .tmux_kill_session(&format!("job_{}", job_id))
+            .tmux_kill_session(&format!("job_{job_id}"))
             .await
             .map_err(|e| e.to_string())?;
         db::update_job_status(&pool, job_id, &JobStatus::Killed).await?;
