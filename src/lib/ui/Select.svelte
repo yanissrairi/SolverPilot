@@ -28,7 +28,7 @@
   <select
     bind:value
     {disabled}
-    class="w-full appearance-none rounded-lg bg-slate-900/50 border border-slate-700/50 py-2 pl-3 pr-10 text-sm text-slate-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-slate-800/50 transition-colors cursor-pointer"
+    class="w-full appearance-none rounded-lg bg-slate-900/50 border border-slate-700/50 py-2 pl-3 pr-10 text-sm text-slate-200 shadow-xs focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-slate-800/50 transition-colors cursor-pointer"
     {...rest}
   >
     {#if placeholder}

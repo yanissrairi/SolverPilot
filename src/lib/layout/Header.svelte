@@ -16,7 +16,7 @@
   <!-- Left: Logo/Title -->
   <div class="flex items-center gap-3">
     <div
-      class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20"
+      class="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -32,7 +32,7 @@
       </svg>
     </div>
     <h1
-      class="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent"
+      class="text-lg font-bold bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent"
     >
       SolverPilot
     </h1>

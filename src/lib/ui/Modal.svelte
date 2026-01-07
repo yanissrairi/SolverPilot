@@ -43,7 +43,7 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
@@ -68,7 +68,7 @@
         {#if closable}
           <button
             onclick={close}
-            class="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+            class="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 focus:outline-hidden focus:ring-2 focus:ring-white/20"
             aria-label="Fermer"
           >
             <svg

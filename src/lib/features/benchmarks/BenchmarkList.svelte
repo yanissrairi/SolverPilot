@@ -42,7 +42,7 @@
         disabled={!activeProject}
         aria-label="Add benchmark file"
         title={activeProject ? 'Add .py file' : 'Select a project first'}
-        class="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        class="p-1.5 rounded-sm hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           ><path d="M12 5v14M5 12h14" /></svg
@@ -52,7 +52,7 @@
         onclick={onrefresh}
         disabled={!activeProject}
         aria-label="Refresh Benchmarks"
-        class="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        class="p-1.5 rounded-sm hover:bg-white/5 text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           ><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path
@@ -86,7 +86,7 @@
         class="text-xs font-medium text-slate-400 hover:text-white uppercase tracking-wider flex items-center gap-2 disabled:opacity-30"
       >
         <div
-          class={`w-4 h-4 rounded border ${selectedBenchmarks.size === benchmarks.length && benchmarks.length > 0 ? 'bg-blue-500 border-blue-500' : 'border-slate-600'} flex items-center justify-center transition-colors`}
+          class={`w-4 h-4 rounded-sm border ${selectedBenchmarks.size === benchmarks.length && benchmarks.length > 0 ? 'bg-blue-500 border-blue-500' : 'border-slate-600'} flex items-center justify-center transition-colors`}
         >
           {#if selectedBenchmarks.size === benchmarks.length && benchmarks.length > 0}
             <svg
@@ -128,7 +128,7 @@
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${selectedBenchmarks.has(bench.name) ? 'bg-blue-500 border-blue-500' : 'border-slate-600 hover:border-blue-400'}`}
+              class={`w-4 h-4 rounded-sm border flex items-center justify-center transition-colors cursor-pointer ${selectedBenchmarks.has(bench.name) ? 'bg-blue-500 border-blue-500' : 'border-slate-600 hover:border-blue-400'}`}
               onclick={() => ontoggle(bench.name)}
             >
               {#if selectedBenchmarks.has(bench.name)}
@@ -150,7 +150,7 @@
             >
             <button
               onclick={() => onfocus(bench)}
-              class={`p-1 rounded transition-colors ${focusedBenchmark?.path === bench.path ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-white/10 text-slate-500 hover:text-slate-300'}`}
+              class={`p-1 rounded-sm transition-colors ${focusedBenchmark?.path === bench.path ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-white/10 text-slate-500 hover:text-slate-300'}`}
               title="Analyze dependencies"
             >
               <svg
@@ -166,7 +166,7 @@
             </button>
             <button
               onclick={() => onremove(bench)}
-              class="p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
+              class="p-1 rounded-sm hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
               title="Remove from project"
             >
               <svg

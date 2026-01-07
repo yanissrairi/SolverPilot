@@ -34,11 +34,15 @@ pub fn run() -> Result<(), tauri::Error> {
         })
         .invoke_handler(tauri::generate_handler![
             // Config
+            commands::check_config_exists,
+            commands::get_config_path,
+            commands::save_config,
             commands::load_config,
             // SSH
             commands::init_ssh,
             commands::close_ssh,
             commands::test_ssh,
+            commands::test_ssh_direct,
             commands::check_ssh_key_status,
             commands::add_ssh_key,
             // Sync

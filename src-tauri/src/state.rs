@@ -4,12 +4,13 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::config::AppConfig;
+use crate::ssh::SshManager;
 
 /// État global de l'application (thread-safe)
 pub struct AppState {
     pub config: Arc<Mutex<Option<AppConfig>>>,
     pub db: Arc<Mutex<Option<SqlitePool>>>,
-    pub ssh_socket: Arc<Mutex<Option<String>>>,
+    pub ssh_manager: Arc<Mutex<Option<SshManager>>>,
     pub current_job_id: Arc<Mutex<Option<i64>>>,
     pub job_start_time: Arc<Mutex<Option<std::time::Instant>>>,
     /// Projet actuellement sélectionné
@@ -21,7 +22,7 @@ impl Default for AppState {
         Self {
             config: Arc::new(Mutex::new(None)),
             db: Arc::new(Mutex::new(None)),
-            ssh_socket: Arc::new(Mutex::new(None)),
+            ssh_manager: Arc::new(Mutex::new(None)),
             current_job_id: Arc::new(Mutex::new(None)),
             job_start_time: Arc::new(Mutex::new(None)),
             current_project_id: Arc::new(Mutex::new(None)),

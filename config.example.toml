@@ -11,8 +11,8 @@ host = "my-server"
 # SSH username
 user = "myuser"
 
-# Use ssh-agent for authentication (recommended)
-use_agent = true
+# SSH port (default: 22)
+# port = 22
 
 # Optional: Path to SSH key (auto-detected from ~/.ssh/config if not set)
 # key_path = "~/.ssh/id_ed25519"

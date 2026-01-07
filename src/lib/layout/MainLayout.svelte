@@ -46,7 +46,7 @@
 </script>
 
 <div
-  class="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-200"
+  class="h-screen flex flex-col overflow-hidden bg-linear-to-br from-slate-950 via-slate-900 to-black text-slate-200"
 >
   <Header {activeProject} {onProjectChange}>
     {@render headerChildren?.()}

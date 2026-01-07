@@ -52,7 +52,7 @@
       <div class="flex items-center gap-4">
         <button
           onclick={onbacktolist}
-          class="p-1.5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+          class="p-1.5 rounded-sm hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
           title="Back to live view"
         >
           <svg
@@ -92,7 +92,7 @@
       </div>
       <div class="flex items-center gap-3">
         {#if selectedHistoryJob.started_at !== null && selectedHistoryJob.finished_at !== null}
-          <span class="font-mono text-sm text-slate-400 bg-slate-800/50 px-2 py-1 rounded">
+          <span class="font-mono text-sm text-slate-400 bg-slate-800/50 px-2 py-1 rounded-sm">
             {formattedTime(
               (new Date(selectedHistoryJob.finished_at).getTime() -
                 new Date(selectedHistoryJob.started_at).getTime()) /
@@ -100,7 +100,7 @@
             )}
           </span>
         {/if}
-        <span class="text-xs text-slate-500 bg-slate-800/30 px-2 py-1 rounded"> History </span>
+        <span class="text-xs text-slate-500 bg-slate-800/30 px-2 py-1 rounded-sm"> History </span>
       </div>
     </div>
 
@@ -146,7 +146,7 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <span class="font-mono text-sm text-blue-300 bg-blue-900/30 px-2 py-1 rounded">
+        <span class="font-mono text-sm text-blue-300 bg-blue-900/30 px-2 py-1 rounded-sm">
           {formattedTime(currentJobStatus.elapsed_seconds)}
         </span>
         {#if isRunning}
@@ -178,7 +178,7 @@
       <!-- Auto-scroll toggle overlay -->
       <button
         onclick={() => (autoScroll = autoScroll !== true)}
-        class={`absolute bottom-4 right-4 p-2 rounded-lg backdrop-blur border transition-all ${autoScroll === true ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-slate-800/50 text-slate-400 border-white/10'}`}
+        class={`absolute bottom-4 right-4 p-2 rounded-lg backdrop-blur-sm border transition-all ${autoScroll === true ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-slate-800/50 text-slate-400 border-white/10'}`}
         title="Toggle Auto-scroll"
       >
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"

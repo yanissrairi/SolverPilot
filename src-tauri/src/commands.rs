@@ -6,9 +6,50 @@ use crate::ssh::SshKeyStatus;
 use crate::state::{AppState, Benchmark, Job, JobStatus, JobStatusResponse, Project, SyncStatus};
 use crate::{db, job, project, python_deps, ssh};
 
+// Helper macro to get SSH manager from state
+macro_rules! get_ssh_manager {
+    ($state:expr) => {
+        $state
+            .ssh_manager
+            .lock()
+            .await
+            .as_ref()
+            .ok_or("SSH not initialized - call init_ssh first")?
+            .clone()
+    };
+}
+
 // ============================================================================
 // Configuration
 // ============================================================================
+
+/// Vérifie si le fichier de configuration existe
+#[tauri::command]
+pub fn check_config_exists() -> Result<bool, String> {
+    AppConfig::exists()
+}
+
+/// Retourne le chemin du fichier de configuration
+#[tauri::command]
+pub fn get_config_path() -> Result<String, String> {
+    Ok(crate::paths::config_path()?.display().to_string())
+}
+
+/// Sauvegarde la configuration et la charge dans l'état
+#[tauri::command]
+pub async fn save_config(state: State<'_, AppState>, config: AppConfig) -> Result<(), String> {
+    config.save()?;
+
+    // Initialiser la DB si pas déjà fait
+    let db_path = AppConfig::db_path()?;
+    let pool = db::init_db(&db_path.to_string_lossy()).await?;
+
+    // Stocker dans l'état
+    *state.config.lock().await = Some(config);
+    *state.db.lock().await = Some(pool);
+
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn load_config(state: State<'_, AppState>) -> Result<AppConfig, String> {
@@ -38,24 +79,50 @@ pub async fn init_ssh(state: State<'_, AppState>) -> Result<String, String> {
         .clone()
         .ok_or("Config non chargée")?;
 
-    let socket = ssh::init_control_master(&config).await?;
-    *state.ssh_socket.lock().await = Some(socket.clone());
+    // Create SSH authentication
+    let key_path = ssh::get_ssh_key_path(&config);
+    let auth = ssh::SshAuth::key(key_path);
 
-    Ok(socket)
+    // Create SSH manager with connection pool (size: 10)
+    let manager = ssh::SshManager::new(config.clone(), auth, 10)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let info = format!(
+        "SSH manager initialized for {}:{}",
+        config.ssh.host, config.ssh.port
+    );
+
+    // Store manager in state
+    *state.ssh_manager.lock().await = Some(manager);
+
+    Ok(info)
 }
 
 #[tauri::command]
 pub async fn close_ssh(state: State<'_, AppState>) -> Result<(), String> {
-    let config = state.config.lock().await.clone();
-    if let Some(config) = config {
-        ssh::close_control_master(&config).await?;
-    }
-    *state.ssh_socket.lock().await = None;
+    // Drop the SSH manager (closes all connections)
+    *state.ssh_manager.lock().await = None;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn test_ssh(state: State<'_, AppState>) -> Result<bool, String> {
+    let manager = state
+        .ssh_manager
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("SSH not initialized")?
+        .clone();
+
+    manager.test_connection().await.map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// Test SSH direct (sans pool) - pour le wizard de setup
+#[tauri::command]
+pub async fn test_ssh_direct(state: State<'_, AppState>) -> Result<(), String> {
     let config = state
         .config
         .lock()
@@ -63,7 +130,12 @@ pub async fn test_ssh(state: State<'_, AppState>) -> Result<bool, String> {
         .clone()
         .ok_or("Config non chargée")?;
 
-    ssh::test_connection(&config).await
+    let key_path = ssh::get_ssh_key_path(&config);
+    let auth = ssh::SshAuth::key(key_path);
+
+    ssh::test_connection_direct(&config, &auth)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -75,7 +147,10 @@ pub async fn check_ssh_key_status(state: State<'_, AppState>) -> Result<SshKeySt
         .clone()
         .ok_or("Config non chargée")?;
 
-    Ok(ssh::check_key_in_agent(&config).await)
+    let key_path = ssh::get_ssh_key_path(&config);
+    let auth = ssh::SshAuth::key(key_path);
+
+    ssh::check_key_status(&config, &auth).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -87,7 +162,17 @@ pub async fn add_ssh_key(state: State<'_, AppState>, passphrase: String) -> Resu
         .clone()
         .ok_or("Config non chargée")?;
 
-    ssh::add_key_to_agent(&config, &passphrase).await
+    // Re-initialize SSH manager with passphrase
+    let key_path = ssh::get_ssh_key_path(&config);
+    let auth = ssh::SshAuth::key_with_passphrase(key_path, passphrase);
+
+    let manager = ssh::SshManager::new(config.clone(), auth, 10)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    *state.ssh_manager.lock().await = Some(manager);
+
+    Ok(())
 }
 
 // ============================================================================
@@ -96,7 +181,7 @@ pub async fn add_ssh_key(state: State<'_, AppState>, passphrase: String) -> Resu
 
 #[tauri::command]
 pub async fn check_sync_status(state: State<'_, AppState>) -> Result<SyncStatus, String> {
-    let config = state
+    let _config = state
         .config
         .lock()
         .await
@@ -124,7 +209,11 @@ pub async fn check_sync_status(state: State<'_, AppState>) -> Result<SyncStatus,
 
     let project_dir = project::project_path(&proj.name)?;
 
-    match ssh::rsync_dry_run(&config, &proj.name, &project_dir).await {
+    match get_ssh_manager!(state)
+        .transfer()
+        .dry_run_project(&proj.name, &project_dir)
+        .await
+    {
         Ok(files) => {
             if files.is_empty() {
                 Ok(SyncStatus::UpToDate)
@@ -135,13 +224,15 @@ pub async fn check_sync_status(state: State<'_, AppState>) -> Result<SyncStatus,
                 })
             }
         }
-        Err(e) => Ok(SyncStatus::Error { message: e }),
+        Err(e) => Ok(SyncStatus::Error {
+            message: e.to_string(),
+        }),
     }
 }
 
 #[tauri::command]
 pub async fn sync_code(state: State<'_, AppState>) -> Result<(), String> {
-    let config = state
+    let _config = state
         .config
         .lock()
         .await
@@ -169,7 +260,11 @@ pub async fn sync_code(state: State<'_, AppState>) -> Result<(), String> {
 
     let project_dir = project::project_path(&proj.name)?;
 
-    ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await
+    get_ssh_manager!(state)
+        .transfer()
+        .rsync_project(&proj.name, &project_dir)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Synchronise uniquement les fichiers nécessaires pour un benchmark
@@ -179,7 +274,7 @@ pub async fn sync_benchmark_deps(
     state: State<'_, AppState>,
     benchmark_path: String,
 ) -> Result<usize, String> {
-    let config = state
+    let _config = state
         .config
         .lock()
         .await
@@ -229,10 +324,18 @@ pub async fn sync_benchmark_deps(
 
     // D'abord sync le projet (pyproject.toml, uv.lock)
     let project_dir = project::project_path(&proj.name)?;
-    ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await?;
+    get_ssh_manager!(state)
+        .transfer()
+        .rsync_project(&proj.name, &project_dir)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Puis sync les fichiers du benchmark
-    ssh::rsync_benchmark_files(&config, &proj.name, benchmark_path, &files).await?;
+    get_ssh_manager!(state)
+        .transfer()
+        .rsync_benchmarks(&proj.name, benchmark_path, files)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(file_count)
 }
@@ -641,10 +744,37 @@ pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, S
     if let Some(job) = pending.into_iter().next() {
         // Sync le projet avant de lancer (pyproject.toml, uv.lock)
         let project_dir = project::project_path(&proj.name)?;
-        ssh::rsync_project_to_server(&config, &proj.name, &project_dir).await?;
+        get_ssh_manager!(state)
+            .transfer()
+            .rsync_project(&proj.name, &project_dir)
+            .await
+            .map_err(|e| e.to_string())?;
 
-        // Lancer le job
-        ssh::start_tmux_job(&config, &proj.name, job.id, &job.benchmark_name).await?;
+        // Lancer le job via tmux
+        let jobs_path = config.remote_jobs_path();
+        let log_file = format!("{}/{}.log", jobs_path, job.id);
+        let project_dir = format!("{}/projects/{}", config.remote.remote_base, proj.name);
+        let uv_path = &config.tools.uv_path;
+
+        let gurobi_exports = if config.gurobi.home.is_empty() {
+            String::new()
+        } else {
+            format!(
+                r#"export GUROBI_HOME="{}"; export GRB_LICENSE_FILE="{}"; export PATH="$PATH:$GUROBI_HOME/bin"; export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$GUROBI_HOME/lib"; "#,
+                config.gurobi.home, config.gurobi.license_file
+            )
+        };
+
+        let cmd = format!(
+            r#"tmux new-session -d -s job_{} 'exec > {} 2>&1; export PYTHONUNBUFFERED=1; {}cd {} && echo "=== Starting job ===" && echo "Working directory: $(pwd)" && echo "=== uv sync ===" && {} sync && echo "=== Running benchmark ===" && {} run python code/{} ; echo "=== Job finished with code: $? ==="'"#,
+            job.id, log_file, gurobi_exports, project_dir, uv_path, uv_path, job.benchmark_name
+        );
+
+        get_ssh_manager!(state)
+            .executor()
+            .execute_background(&cmd)
+            .await
+            .map_err(|e| e.to_string())?;
 
         // Mettre à jour le statut
         db::update_job_status(&pool, job.id, &JobStatus::Running).await?;
@@ -664,7 +794,7 @@ pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, S
 
 #[tauri::command]
 pub async fn stop_job(state: State<'_, AppState>) -> Result<(), String> {
-    let config = state
+    let _config = state
         .config
         .lock()
         .await
@@ -673,7 +803,11 @@ pub async fn stop_job(state: State<'_, AppState>) -> Result<(), String> {
 
     let job_id = *state.current_job_id.lock().await;
     if let Some(job_id) = job_id {
-        ssh::stop_tmux_job(&config, job_id).await?;
+        get_ssh_manager!(state)
+            .executor()
+            .tmux_send_ctrl_c(&format!("job_{}", job_id))
+            .await
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -681,7 +815,7 @@ pub async fn stop_job(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn kill_job(state: State<'_, AppState>) -> Result<(), String> {
-    let config = state
+    let _config = state
         .config
         .lock()
         .await
@@ -698,7 +832,11 @@ pub async fn kill_job(state: State<'_, AppState>) -> Result<(), String> {
 
     let job_id = *state.current_job_id.lock().await;
     if let Some(job_id) = job_id {
-        ssh::kill_tmux_job(&config, job_id).await?;
+        get_ssh_manager!(state)
+            .executor()
+            .tmux_kill_session(&format!("job_{}", job_id))
+            .await
+            .map_err(|e| e.to_string())?;
         db::update_job_status(&pool, job_id, &JobStatus::Killed).await?;
         *state.current_job_id.lock().await = None;
         *state.job_start_time.lock().await = None;
@@ -718,7 +856,14 @@ pub async fn get_job_logs(state: State<'_, AppState>, lines: u32) -> Result<Stri
 
     let job_id = *state.current_job_id.lock().await;
     if let Some(job_id) = job_id {
-        ssh::get_job_logs(&config, job_id, lines).await
+        get_ssh_manager!(state)
+            .executor()
+            .tail_logs(
+                &format!("{}/jobs/{}.log", config.remote.remote_base, job_id),
+                lines,
+            )
+            .await
+            .map_err(|e| e.to_string())
     } else {
         Ok(String::new())
     }
@@ -751,8 +896,14 @@ pub async fn get_job_status(state: State<'_, AppState>) -> Result<JobStatusRespo
 
     if let Some(job_id) = job_id {
         // Récupérer les logs
-        let logs = ssh::get_job_logs(&config, job_id, 200)
+        let logs = get_ssh_manager!(state)
+            .executor()
+            .tail_logs(
+                &format!("{}/jobs/{}.log", config.remote.remote_base, job_id),
+                200,
+            )
             .await
+            .map_err(|e| e.to_string())
             .unwrap_or_default();
 
         // Parser la progression
@@ -775,8 +926,11 @@ pub async fn get_job_status(state: State<'_, AppState>) -> Result<JobStatusRespo
 
         // Vérifier si tmux existe encore
         let session_name = format!("job_{job_id}");
-        let tmux_exists = ssh::tmux_session_exists(&config, &session_name)
+        let tmux_exists = get_ssh_manager!(state)
+            .executor()
+            .tmux_session_exists(&session_name)
             .await
+            .map_err(|e| e.to_string())
             .unwrap_or(false);
 
         // Si le job est terminé ou tmux n'existe plus

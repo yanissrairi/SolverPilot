@@ -38,7 +38,7 @@
 >
   <div class="p-4">
     <div class="flex items-start">
-      <div class="flex-shrink-0">
+      <div class="shrink-0">
         <svg
           class="h-6 w-6 {colors[item.type]}"
           fill="none"
@@ -53,10 +53,10 @@
       <div class="ml-3 w-0 flex-1 pt-0.5">
         <p class="text-sm font-medium">{item.message}</p>
       </div>
-      <div class="ml-4 flex flex-shrink-0">
+      <div class="ml-4 flex shrink-0">
         <button
           type="button"
-          class="inline-flex rounded-md bg-slate-800 text-slate-400 hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+          class="inline-flex rounded-md bg-slate-800 text-slate-400 hover:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
           onclick={() => toast.remove(item.id)}
         >
           <span class="sr-only">Close</span>

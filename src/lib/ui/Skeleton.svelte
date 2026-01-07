@@ -9,7 +9,7 @@
   const { variant = 'text', width, height, class: className = '' }: Props = $props();
 
   const variantClasses = {
-    text: 'rounded',
+    text: 'rounded-sm',
     circle: 'rounded-full',
     rect: 'rounded-md',
   };

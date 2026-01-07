@@ -34,7 +34,7 @@
     ]}"
   >
     <div
-      class="whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs font-medium text-slate-200 shadow-lg border border-slate-700/50 backdrop-blur-sm"
+      class="whitespace-nowrap rounded-sm bg-slate-800 px-2 py-1 text-xs font-medium text-slate-200 shadow-lg border border-slate-700/50 backdrop-blur-xs"
     >
       {text}
     </div>

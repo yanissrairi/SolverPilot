@@ -180,7 +180,9 @@
       </div>
     {:else}
       {#if depsError}
-        <div class="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-300">
+        <div
+          class="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-sm text-xs text-red-300"
+        >
           {depsError}
         </div>
       {/if}
@@ -191,13 +193,13 @@
           type="text"
           bind:value={newDepName}
           placeholder="package-name"
-          class="flex-1 bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500 font-mono"
+          class="flex-1 bg-slate-800/50 border border-slate-700 rounded-sm px-2 py-1.5 text-xs focus:outline-hidden focus:border-blue-500 font-mono"
           disabled={addingPackage !== null || removingPackage !== null}
         />
         <button
           type="submit"
           disabled={!newDepName.trim() || addingPackage !== null}
-          class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-sm text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {#if addingPackage === newDepName.trim()}
             <svg
@@ -220,7 +222,7 @@
         <button
           onclick={handleUpdateAll}
           disabled={isUpdatingAll || projectDeps.length === 0}
-          class="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+          class="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-sm text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {#if isUpdatingAll}
             <svg
@@ -250,7 +252,7 @@
         <button
           onclick={handleSyncEnv}
           disabled={isSyncing}
-          class="flex-1 px-2 py-1.5 bg-blue-600/80 hover:bg-blue-600 rounded text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+          class="flex-1 px-2 py-1.5 bg-blue-600/80 hover:bg-blue-600 rounded-sm text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {#if isSyncing}
             <svg
@@ -336,7 +338,7 @@
                     void handleRemovePackage(pkg.name);
                   }}
                   disabled={removingPackage !== null}
-                  class="p-1 rounded hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                  class="p-1 rounded-sm hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                   title="Remove"
                 >
                   {#if removingPackage === pkg.name}
@@ -368,7 +370,7 @@
                     void handleAddPackage(pkg.name);
                   }}
                   disabled={addingPackage !== null}
-                  class="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors disabled:opacity-50"
+                  class="p-1 rounded-sm hover:bg-emerald-500/20 text-emerald-400 transition-colors disabled:opacity-50"
                   title="Add to project"
                 >
                   {#if addingPackage === pkg.name}
@@ -430,7 +432,7 @@
 
 {#snippet localDep(dep: LocalDependency)}
   <div
-    class="flex items-center gap-2 px-2 py-1 rounded text-sm hover:bg-white/5 transition-colors"
+    class="flex items-center gap-2 px-2 py-1 rounded-sm text-sm hover:bg-white/5 transition-colors"
     title={dep.file_path}
   >
     <svg
@@ -450,7 +452,7 @@
 
     {#if !dep.exists}
       <span
-        class="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30"
+        class="text-xs px-1.5 py-0.5 rounded-sm bg-red-500/20 text-red-300 border border-red-500/30"
       >
         missing
       </span>

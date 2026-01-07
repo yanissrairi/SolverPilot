@@ -27,7 +27,7 @@
   }: Props = $props();
 
   const baseClasses =
-    'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 rounded-lg disabled:opacity-50 disabled:pointer-events-none active:scale-95';
+    'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 rounded-lg disabled:opacity-50 disabled:pointer-events-none active:scale-95';
 
   const variantClasses = {
     primary:

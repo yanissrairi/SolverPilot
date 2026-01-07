@@ -17,10 +17,16 @@ pub struct AppConfig {
 pub struct SshConfig {
     pub host: String,
     pub user: String,
-    pub use_agent: bool,
-    /// Chemin de la clé SSH (optionnel, défaut: `~/.ssh/id_rsa`)
+    /// Port SSH (défaut: 22)
+    #[serde(default = "default_port")]
+    pub port: u16,
+    /// Chemin de la clé SSH (optionnel, défaut: auto-détecté depuis ~/.ssh/config)
     #[serde(default = "default_key_path")]
     pub key_path: String,
+}
+
+fn default_port() -> u16 {
+    22
 }
 
 fn default_key_path() -> String {
@@ -121,5 +127,31 @@ impl AppConfig {
     /// - Windows: `C:\Users\<user>\AppData\Roaming\app.solverpilot\solver-pilot.db`
     pub fn db_path() -> Result<PathBuf, String> {
         paths::db_path()
+    }
+
+    /// Sauvegarde la configuration dans le fichier config.toml
+    pub fn save(&self) -> Result<(), String> {
+        let config_path = paths::config_path()?;
+
+        // Créer le dossier parent si nécessaire
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Erreur création dossier config: {e}"))?;
+        }
+
+        // Sérialiser en TOML
+        let toml_content = toml::to_string_pretty(self)
+            .map_err(|e| format!("Erreur sérialisation config: {e}"))?;
+
+        // Écrire le fichier
+        std::fs::write(&config_path, toml_content)
+            .map_err(|e| format!("Erreur écriture config: {e}"))?;
+
+        Ok(())
+    }
+
+    /// Vérifie si le fichier config existe
+    pub fn exists() -> Result<bool, String> {
+        Ok(paths::config_path()?.exists())
     }
 }
