@@ -84,7 +84,7 @@ pub async fn set_python_version(name: &str, version: &str, uv_path: &str) -> Res
 
     let re = regex::Regex::new(r#"requires-python\s*=\s*">=[\d.]+""#)
         .map_err(|e| format!("Erreur regex: {e}"))?;
-    let new_content = re.replace(&content, format!(r#"requires-python = ">={}""#, version));
+    let new_content = re.replace(&content, format!(r#"requires-python = ">={version}""#));
 
     std::fs::write(&pyproject_path, new_content.as_bytes())
         .map_err(|e| format!("Erreur écriture pyproject.toml: {e}"))?;

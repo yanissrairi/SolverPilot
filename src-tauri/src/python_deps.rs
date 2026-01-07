@@ -667,7 +667,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pyproject_parsing() {
+    fn test_pyproject_parsing() -> Result<(), Box<dyn std::error::Error>> {
         let content = r#"
 [project]
 name = "my-project"
@@ -679,7 +679,7 @@ dependencies = [
 "#;
         let temp_dir = std::env::temp_dir();
         let pyproject_path = temp_dir.join("test_pyproject.toml");
-        std::fs::write(&pyproject_path, content).unwrap();
+        std::fs::write(&pyproject_path, content)?;
 
         let deps = parse_pyproject_deps(&pyproject_path);
         assert!(deps.contains("numpy"));
@@ -687,5 +687,6 @@ dependencies = [
         assert!(deps.contains("gurobipy"));
 
         std::fs::remove_file(pyproject_path).ok();
+        Ok(())
     }
 }

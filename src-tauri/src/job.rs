@@ -76,13 +76,13 @@ mod tests {
 
     #[test]
     fn test_parse_progress() {
-        let logs = r#"
+        let logs = r"
 [1/22] Config: N5_FF1_Tauto
   Grille: 5x5
 [2/22] Config: N5_FF2_Tauto
   Résolu en 1.2s
 [3/22] Config: N7_FF1_Tauto
-"#;
+";
         assert_eq!(parse_progress(logs), Some((3, 22)));
     }
 

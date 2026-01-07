@@ -131,6 +131,9 @@ const result = await api.listProjects();
 
 - `unwrap_used` and `expect_used` are **denied** - use `ok_or()` or `?`
 - `pedantic`, `nursery`, `correctness` enabled
+- **Never use `#[allow(...)]`** unless absolutely necessary - fix the code instead
+  - For tests needing fallible ops, use `-> Result<(), Box<dyn std::error::Error>>` + `?`
+  - For unavoidable cases, document why in a comment
 
 **TypeScript/Svelte** (eslint.config.js):
 
