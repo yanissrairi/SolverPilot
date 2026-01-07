@@ -74,13 +74,32 @@ impl bb8::ManageConnection for SshConnectionManager {
         let handler = SshHandler::new();
 
         // Connect to SSH server with timeout
+        tracing::info!(
+            "Attempting SSH connection to {}:{} (timeout: 30s)",
+            self.config.ssh.host,
+            self.config.ssh.port
+        );
+
         let mut session = tokio::time::timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(30),
             russh::client::connect(self.client_config.clone(), &addr, handler),
         )
         .await
-        .map_err(|_| SshError::timeout("SSH connection", 10))?
+        .map_err(|_| {
+            tracing::error!(
+                "SSH connection to {}:{} timed out after 30 seconds",
+                self.config.ssh.host,
+                self.config.ssh.port
+            );
+            SshError::timeout("SSH connection", 30)
+        })?
         .map_err(|e| {
+            tracing::error!(
+                "SSH connection to {}:{} failed: {}",
+                self.config.ssh.host,
+                self.config.ssh.port,
+                e
+            );
             SshError::connection_failed(&self.config.ssh.host, self.config.ssh.port, e.to_string())
         })?;
 
@@ -139,7 +158,7 @@ impl SshPool {
 
         let pool = bb8::Pool::builder()
             .max_size(max_size)
-            .connection_timeout(Duration::from_secs(10))
+            .connection_timeout(Duration::from_secs(45)) // Increased from 10s to 45s
             .idle_timeout(Some(Duration::from_secs(300))) // 5 minutes idle timeout
             .max_lifetime(Some(Duration::from_secs(3600))) // 1 hour max lifetime
             .build(manager)

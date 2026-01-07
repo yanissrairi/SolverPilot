@@ -147,8 +147,16 @@ pub async fn authenticate_session<H: russh::client::Handler>(
     config: &AppConfig,
     auth: &SshAuth,
 ) -> Result<()> {
+    tracing::info!("Authenticating as user '{}'", config.ssh.user);
+
     // Load the private key
-    let key_pair = auth.load_key()?;
+    tracing::debug!("Loading SSH private key");
+    let key_pair = auth.load_key().map_err(|e| {
+        tracing::error!("Failed to load SSH key: {}", e);
+        e
+    })?;
+
+    tracing::debug!("SSH key loaded successfully");
 
     // Get the best supported RSA hash algorithm if using RSA
     let rsa_hash = session.best_supported_rsa_hash().await?.flatten();
@@ -157,11 +165,13 @@ pub async fn authenticate_session<H: russh::client::Handler>(
     let key_with_hash = PrivateKeyWithHashAlg::new(Arc::new(key_pair), rsa_hash);
 
     // Attempt authentication
+    tracing::debug!("Attempting public key authentication");
     let auth_result = session
         .authenticate_publickey(&config.ssh.user, key_with_hash)
         .await?;
 
     if !auth_result.success() {
+        tracing::error!("SSH authentication failed for user '{}'", config.ssh.user);
         return Err(SshError::auth_failed(
             &config.ssh.user,
             AuthMethod::PublicKey,
@@ -169,6 +179,7 @@ pub async fn authenticate_session<H: russh::client::Handler>(
         ));
     }
 
+    tracing::info!("SSH authentication successful");
     Ok(())
 }
 

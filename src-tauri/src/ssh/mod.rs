@@ -99,14 +99,14 @@ pub async fn test_connection_direct(config: &AppConfig, auth: &SshAuth) -> Resul
     use std::time::Duration;
 
     tracing::info!(
-        "Testing direct SSH connection to {}:{}",
+        "Testing direct SSH connection to {}:{} (timeout: 30s)",
         config.ssh.host,
         config.ssh.port
     );
 
     // Create minimal client config
     let client_config = Arc::new(Config {
-        inactivity_timeout: Some(Duration::from_secs(10)),
+        inactivity_timeout: Some(Duration::from_secs(30)),
         ..Default::default()
     });
 
@@ -114,13 +114,34 @@ pub async fn test_connection_direct(config: &AppConfig, auth: &SshAuth) -> Resul
     let handler = auth::SshHandler::new();
     let addr = (config.ssh.host.as_str(), config.ssh.port);
 
+    tracing::debug!(
+        "Starting TCP connection to {}:{}",
+        config.ssh.host,
+        config.ssh.port
+    );
+
     let mut session = tokio::time::timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         russh::client::connect(client_config, &addr, handler),
     )
     .await
-    .map_err(|_| SshError::timeout("connection", 10))?
-    .map_err(|e| SshError::connection_failed(&config.ssh.host, config.ssh.port, e.to_string()))?;
+    .map_err(|_| {
+        tracing::error!(
+            "SSH connection to {}:{} timed out after 30 seconds",
+            config.ssh.host,
+            config.ssh.port
+        );
+        SshError::timeout("connection", 30)
+    })?
+    .map_err(|e| {
+        tracing::error!(
+            "SSH connection to {}:{} failed: {}",
+            config.ssh.host,
+            config.ssh.port,
+            e
+        );
+        SshError::connection_failed(&config.ssh.host, config.ssh.port, e.to_string())
+    })?;
 
     // Authenticate
     auth::authenticate_session(&mut session, config, auth).await?;
