@@ -46,7 +46,7 @@ development_status:
   1-3-queue-panel-ui-view-queued-jobs: done
   1-4-queue-job-management-remove-reorder: done
   1-5-duplicate-detection-queue-filtering: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   epic-2: backlog
   2-1-bash-wrapper-script-state-capture-foundation: backlog
