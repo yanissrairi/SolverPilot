@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SolverPilot Beta 1 - Design Direction Mockups</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          'Inter',
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        color: #e2e8f0;
+        overflow-x: hidden;
+      }
+
+      .container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 40px 20px;
+      }
+
+      h1 {
+        font-size: 36px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        text-align: center;
+      }
+
+      .subtitle {
+        text-align: center;
+        font-size: 18px;
+        color: #94a3b8;
+        margin-bottom: 48px;
+      }
+
+      .evaluation-criteria {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 48px;
+      }
+
+      .criteria-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .criteria-item {
+        display: flex;
+        align-items: start;
+        gap: 8px;
+      }
+
+      .criteria-item::before {
+        content: '✅';
+        flex-shrink: 0;
+      }
+
+      .mockup-section {
+        margin-bottom: 80px;
+      }
+
+      .mockup-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+
+      .mockup-title {
+        font-size: 28px;
+        font-weight: 600;
+      }
+
+      .mockup-tags {
+        display: flex;
+        gap: 8px;
+      }
+
+      .tag {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .tag.density-high {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+      }
+      .tag.density-balanced {
+        background: rgba(234, 179, 8, 0.2);
+        color: #facc15;
+      }
+      .tag.density-spacious {
+        background: rgba(34, 197, 94, 0.2);
+        color: #4ade80;
+      }
+
+      .mockup-description {
+        color: #cbd5e1;
+        margin-bottom: 24px;
+        line-height: 1.6;
+      }
+
+      .mockup-frame {
+        border: 2px solid rgba(148, 163, 184, 0.3);
+        border-radius: 16px;
+        overflow: hidden;
+        background: #0f172a;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Design Direction 1: Dense Power User */
+      .design-1 {
+        display: grid;
+        grid-template-columns: 200px 1fr 300px;
+        height: 700px;
+      }
+
+      .panel {
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(2px);
+        border-right: 1px solid rgba(148, 163, 184, 0.2);
+        overflow-y: auto;
+      }
+
+      .panel:last-child {
+        border-right: none;
+      }
+
+      .panel-header {
+        background: rgba(15, 23, 42, 0.9);
+        backdrop-filter: blur(12px);
+        padding: 12px 16px;
+        border-bottom: 2px solid rgba(148, 163, 184, 0.2);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .panel-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .status-summary {
+        font-size: 13px;
+        color: #94a3b8;
+        margin-top: 4px;
+        font-family: 'Monaco', monospace;
+      }
+
+      /* Queue Items */
+      .queue-list {
+        list-style: none;
+      }
+
+      .queue-item {
+        padding: 4px 8px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: background 150ms;
+      }
+
+      .queue-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .queue-item:nth-child(even) {
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .queue-item:nth-child(even):hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .status-running {
+        background: oklch(0.75 0.12 85);
+        color: #000;
+      }
+
+      .status-pending {
+        background: oklch(0.65 0.01 270);
+        color: #fff;
+      }
+
+      .status-completed {
+        background: oklch(0.7 0.17 145);
+        color: #000;
+      }
+
+      .status-failed {
+        background: oklch(0.62 0.2 25);
+        color: #fff;
+      }
+
+      .elapsed-time {
+        font-family: 'Monaco', monospace;
+        font-size: 12px;
+        color: #94a3b8;
+        margin-left: auto;
+      }
+
+      .filename {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Benchmark List */
+      .benchmark-list {
+        list-style: none;
+      }
+
+      .benchmark-item {
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 150ms;
+      }
+
+      .benchmark-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .checkbox {
+        width: 14px;
+        height: 14px;
+        border: 1px solid #64748b;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+
+      /* Logs Panel */
+      .logs-content {
+        padding: 16px;
+        font-family: 'Monaco', monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #cbd5e1;
+      }
+
+      .log-line {
+        margin-bottom: 4px;
+      }
+
+      .log-timestamp {
+        color: #64748b;
+      }
+
+      /* Design Direction 2: Balanced Clarity */
+      .design-2 {
+        display: grid;
+        grid-template-columns: 240px 1fr 320px;
+        height: 700px;
+      }
+
+      .design-2 .queue-item {
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+
+      .design-2 .status-badge {
+        font-size: 12px;
+        padding: 4px 10px;
+      }
+
+      .design-2 .panel-header {
+        padding: 16px;
+      }
+
+      /* Design Direction 3: Status-First */
+      .design-3 {
+        display: grid;
+        grid-template-columns: 280px 1fr 300px;
+        height: 700px;
+      }
+
+      .design-3 .queue-item {
+        padding: 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .design-3 .status-badge {
+        font-size: 14px;
+        padding: 6px 12px;
+      }
+
+      .queue-item-meta {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-size: 12px;
+        color: #94a3b8;
+        font-family: 'Monaco', monospace;
+      }
+
+      /* Design Direction 4: Timeline View */
+      .design-4 {
+        display: flex;
+        flex-direction: column;
+        height: 700px;
+      }
+
+      .timeline-header {
+        background: rgba(15, 23, 42, 0.9);
+        backdrop-filter: blur(12px);
+        padding: 16px;
+        border-bottom: 2px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .timeline-content {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+      }
+
+      .timeline-row {
+        display: grid;
+        grid-template-columns: 200px 1fr 150px;
+        gap: 16px;
+        align-items: center;
+        padding: 12px;
+        margin-bottom: 8px;
+        background: rgba(15, 23, 42, 0.6);
+        border-left: 4px solid transparent;
+        border-radius: 6px;
+        transition: all 150ms;
+      }
+
+      .timeline-row:hover {
+        background: rgba(15, 23, 42, 0.8);
+      }
+
+      .timeline-row.running {
+        border-left-color: oklch(0.75 0.12 85);
+      }
+
+      .timeline-row.completed {
+        border-left-color: oklch(0.7 0.17 145);
+      }
+
+      .timeline-row.failed {
+        border-left-color: oklch(0.62 0.2 25);
+      }
+
+      .timeline-bar-container {
+        background: rgba(148, 163, 184, 0.1);
+        height: 24px;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .timeline-bar {
+        height: 100%;
+        background: linear-gradient(90deg, oklch(0.75 0.12 85), oklch(0.65 0.15 85));
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+      }
+
+      /* Design Direction 5: Card-Based */
+      .design-5 {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        height: 700px;
+      }
+
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+        padding: 24px;
+        overflow-y: auto;
+      }
+
+      .job-card {
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 12px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 200ms;
+      }
+
+      .job-card:hover {
+        border-color: rgba(148, 163, 184, 0.4);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 12px;
+      }
+
+      .card-title {
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .card-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+
+      /* Design Direction 6: Minimal Command Line */
+      .design-6 {
+        display: flex;
+        flex-direction: column;
+        height: 700px;
+        background: #000;
+        font-family: 'Monaco', monospace;
+      }
+
+      .terminal-header {
+        background: #1a1a1a;
+        padding: 12px 16px;
+        border-bottom: 1px solid #333;
+        font-size: 13px;
+        color: #0f0;
+      }
+
+      .terminal-content {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .terminal-line {
+        margin-bottom: 4px;
+      }
+
+      .prompt {
+        color: #0f0;
+      }
+
+      .terminal-command {
+        color: #fff;
+      }
+
+      .terminal-output {
+        color: #888;
+      }
+
+      /* Connection indicator */
+      .connection-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #94a3b8;
+        margin-left: 16px;
+      }
+
+      .connection-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: oklch(0.7 0.17 145);
+        animation: blink 2s ease-in-out infinite;
+      }
+
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+
+      /* Chunking dividers */
+      .queue-item:nth-child(10n) {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+      }
+
+      /* Scrollbar styling */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.5);
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.3);
+        border-radius: 4px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.5);
+      }
+
+      /* Icons */
+      .icon {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+      }
+
+      .spinner {
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎨 SolverPilot Beta 1 - Design Direction Mockups</h1>
+      <p class="subtitle">Exploring 6 visual approaches for the queue management interface</p>
+
+      <div class="evaluation-criteria">
+        <h3>Evaluation Criteria</h3>
+        <div class="criteria-grid">
+          <div class="criteria-item">
+            <strong>Layout Intuitiveness</strong> - Which information hierarchy matches your
+            priorities?
+          </div>
+          <div class="criteria-item">
+            <strong>Interaction Style</strong> - Which interaction style fits your core experience?
+          </div>
+          <div class="criteria-item">
+            <strong>Visual Weight</strong> - Which visual density feels right for your brand?
+          </div>
+          <div class="criteria-item">
+            <strong>Navigation Approach</strong> - Which navigation pattern matches user
+            expectations?
+          </div>
+          <div class="criteria-item">
+            <strong>Component Usage</strong> - How well do components support user journeys?
+          </div>
+          <div class="criteria-item">
+            <strong>Brand Alignment</strong> - Which direction best supports your emotional goals?
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Direction 1: Dense Power User -->
+      <div class="mockup-section">
+        <div class="mockup-header">
+          <h2 class="mockup-title">Direction 1: Dense Power User</h2>
+          <div class="mockup-tags">
+            <span class="tag density-high">High Density</span>
+            <span class="tag">List-Based</span>
+            <span class="tag">Information First</span>
+          </div>
+        </div>
+        <div class="mockup-description">
+          <strong>Philosophy:</strong> Maximum information density for power users. Compact spacing
+          (py-1, 4px vertical), alternating row backgrounds, minimal chrome. Optimized for 15-18
+          visible jobs without scrolling. Shows chunking dividers every 10 jobs for 20+ queues.
+          <br /><br />
+          <strong>Best for:</strong> Users who want to see as much status at once as possible.
+          Minimal distraction, maximum data.
+        </div>
+        <div class="mockup-frame">
+          <div class="design-1">
+            <!-- Left Panel: Benchmarks -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Benchmarks</div>
+              </div>
+              <ul class="benchmark-list">
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_01.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_02.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_03.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_04.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_05.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_06.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_07.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_08.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_09.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_10.py</li>
+              </ul>
+            </div>
+
+            <!-- Center Panel: Queue -->
+            <div class="panel">
+              <div class="panel-header" style="border-bottom-color: rgba(34, 197, 94, 0.4)">
+                <div class="panel-title">
+                  Queue
+                  <span class="connection-indicator">
+                    <span class="connection-dot"></span>
+                    Connected
+                  </span>
+                </div>
+                <div class="status-summary">3 running • 5 pending • 12 completed</div>
+              </div>
+              <ul class="queue-list">
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <span class="filename">benchmark_01.py</span>
+                  <span class="elapsed-time">12m 34s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <span class="filename">benchmark_02.py</span>
+                  <span class="elapsed-time">8m 12s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <span class="filename">benchmark_03.py</span>
+                  <span class="elapsed-time">3m 45s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_04.py</span>
+                  <span class="elapsed-time">#4</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_05.py</span>
+                  <span class="elapsed-time">#5</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_06.py</span>
+                  <span class="elapsed-time">#6</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_07.py</span>
+                  <span class="elapsed-time">#7</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_08.py</span>
+                  <span class="elapsed-time">#8</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_09.py</span>
+                  <span class="elapsed-time">2h 34m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_10.py</span>
+                  <span class="elapsed-time">1h 23m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_11.py</span>
+                  <span class="elapsed-time">4h 12m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-failed">✗ Failed</span>
+                  <span class="filename">benchmark_12.py</span>
+                  <span class="elapsed-time">8m 02s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_13.py</span>
+                  <span class="elapsed-time">3h 45m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_14.py</span>
+                  <span class="elapsed-time">2h 11m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_15.py</span>
+                  <span class="elapsed-time">1h 54m</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Right Panel: Logs -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Logs</div>
+                <div class="status-summary">benchmark_01.py</div>
+              </div>
+              <div class="logs-content">
+                <div class="log-line">
+                  <span class="log-timestamp">[12:34:12]</span> Starting solver...
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:34:13]</span> Loading problem instance
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:34:15]</span> Presolve: 2430 rows, 3245 cols
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:35:02]</span> Iteration 100, obj = 2345.67
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:36:45]</span> [progress 45/100]
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:38:23]</span> Iteration 500, obj = 1234.56
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:40:01]</span> Heuristic solution found
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:42:15]</span> [progress 78/100]
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:44:32]</span> Branching node 234...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Direction 2: Balanced Clarity -->
+      <div class="mockup-section">
+        <div class="mockup-header">
+          <h2 class="mockup-title">Direction 2: Balanced Clarity</h2>
+          <div class="mockup-tags">
+            <span class="tag density-balanced">Balanced Density</span>
+            <span class="tag">Glassmorphism</span>
+            <span class="tag">Current Alpha+</span>
+          </div>
+        </div>
+        <div class="mockup-description">
+          <strong>Philosophy:</strong> Evolution of current Alpha design with refinements from
+          visual foundation. Balanced spacing (py-2, 8px vertical), clear visual hierarchy through
+          panel opacity (85%/75%/80%), enhanced status badges. Performance-optimized blur (2px
+          panels, 12px header). <br /><br />
+          <strong>Best for:</strong> Natural progression from Alpha. Familiar to existing users,
+          adds queue features without radical redesign.
+        </div>
+        <div class="mockup-frame">
+          <div class="design-2">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Benchmarks</div>
+              </div>
+              <ul class="benchmark-list">
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_01.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_02.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_03.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_04.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_05.py</li>
+              </ul>
+            </div>
+
+            <div class="panel" style="background: rgba(15, 23, 42, 0.85)">
+              <div class="panel-header" style="border-bottom-color: rgba(34, 197, 94, 0.4)">
+                <div class="panel-title">
+                  Queue
+                  <span class="connection-indicator">
+                    <span class="connection-dot"></span>
+                    Connected
+                  </span>
+                </div>
+                <div class="status-summary">3 running • 2 pending • 5 completed</div>
+              </div>
+              <ul class="queue-list">
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <span class="filename">benchmark_01.py</span>
+                  <span class="elapsed-time">12m 34s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <span class="filename">benchmark_02.py</span>
+                  <span class="elapsed-time">8m 12s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <span class="filename">benchmark_03.py</span>
+                  <span class="elapsed-time">3m 45s</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_04.py</span>
+                  <span class="elapsed-time">#4</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <span class="filename">benchmark_05.py</span>
+                  <span class="elapsed-time">#5</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_06.py</span>
+                  <span class="elapsed-time">2h 34m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <span class="filename">benchmark_07.py</span>
+                  <span class="elapsed-time">1h 23m</span>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-failed">✗ Failed</span>
+                  <span class="filename">benchmark_08.py</span>
+                  <span class="elapsed-time">8m 02s</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Logs</div>
+                <div class="status-summary">benchmark_01.py</div>
+              </div>
+              <div class="logs-content">
+                <div class="log-line">
+                  <span class="log-timestamp">[12:34:12]</span> Starting solver...
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:34:13]</span> Loading problem
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:36:45]</span> [progress 45/100]
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Direction 3: Status-First -->
+      <div class="mockup-section">
+        <div class="mockup-header">
+          <h2 class="mockup-title">Direction 3: Status-First</h2>
+          <div class="mockup-tags">
+            <span class="tag density-balanced">Balanced Density</span>
+            <span class="tag">Visual Emphasis</span>
+            <span class="tag">Scannable</span>
+          </div>
+        </div>
+        <div class="mockup-description">
+          <strong>Philosophy:</strong> Status badges are the primary visual element. Larger badges
+          (14px font, 6px padding), stacked layout with status on top. Quick visual parsing through
+          prominent color-coded indicators. Vertical layout shows more metadata per job.
+          <br /><br />
+          <strong>Best for:</strong> Users who primarily monitor status changes and need to quickly
+          spot running/failed jobs at a glance.
+        </div>
+        <div class="mockup-frame">
+          <div class="design-3">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Benchmarks</div>
+              </div>
+              <ul class="benchmark-list">
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_01.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_02.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_03.py</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header" style="border-bottom-color: rgba(34, 197, 94, 0.4)">
+                <div class="panel-title">
+                  Queue
+                  <span class="connection-indicator">
+                    <span class="connection-dot"></span>
+                    Connected
+                  </span>
+                </div>
+                <div class="status-summary">3 running • 2 pending • 3 completed</div>
+              </div>
+              <ul class="queue-list">
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <div class="queue-item-meta">
+                    <span>benchmark_01.py</span>
+                    <span>12m 34s</span>
+                  </div>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <div class="queue-item-meta">
+                    <span>benchmark_02.py</span>
+                    <span>8m 12s</span>
+                  </div>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-running">⟳ Running</span>
+                  <div class="queue-item-meta">
+                    <span>benchmark_03.py</span>
+                    <span>3m 45s</span>
+                  </div>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <div class="queue-item-meta">
+                    <span>benchmark_04.py</span>
+                    <span>Position #4</span>
+                  </div>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-pending">◯ Pending</span>
+                  <div class="queue-item-meta">
+                    <span>benchmark_05.py</span>
+                    <span>Position #5</span>
+                  </div>
+                </li>
+                <li class="queue-item">
+                  <span class="status-badge status-completed">✓ Completed</span>
+                  <div class="queue-item-meta">
+                    <span>benchmark_06.py</span>
+                    <span>Finished in 2h 34m</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Logs</div>
+                <div class="status-summary">benchmark_01.py</div>
+              </div>
+              <div class="logs-content">
+                <div class="log-line">
+                  <span class="log-timestamp">[12:34:12]</span> Starting solver...
+                </div>
+                <div class="log-line">
+                  <span class="log-timestamp">[12:36:45]</span> [progress 45/100]
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Direction 4: Timeline View -->
+      <div class="mockup-section">
+        <div class="mockup-header">
+          <h2 class="mockup-title">Direction 4: Timeline View</h2>
+          <div class="mockup-tags">
+            <span class="tag">Timeline</span>
+            <span class="tag">Gantt-Style</span>
+            <span class="tag">Progress-First</span>
+          </div>
+        </div>
+        <div class="mockup-description">
+          <strong>Philosophy:</strong> Queue visualized as a timeline/Gantt chart. Horizontal
+          progress bars show elapsed time and completion progress. Left border color indicates
+          status. Full-width single-panel view prioritizes temporal relationships. <br /><br />
+          <strong>Best for:</strong> Users who think in terms of time and want to see relative
+          duration and progress of jobs.
+        </div>
+        <div class="mockup-frame">
+          <div class="design-4">
+            <div class="timeline-header">
+              <div class="panel-title">
+                Queue Timeline
+                <span class="connection-indicator">
+                  <span class="connection-dot"></span>
+                  Connected
+                </span>
+              </div>
+              <div class="status-summary">3 running • 2 pending • 5 completed • 1 failed</div>
+            </div>
+            <div class="timeline-content">
+              <div class="timeline-row running">
+                <div>
+                  <strong>benchmark_01.py</strong><br />
+                  <small style="color: #94a3b8">Running • 12m 34s</small>
+                </div>
+                <div class="timeline-bar-container">
+                  <div class="timeline-bar" style="width: 45%"></div>
+                </div>
+                <div style="text-align: right; font-family: Monaco, monospace; font-size: 12px">
+                  <strong>45%</strong><br />
+                  <small style="color: #94a3b8">~15m left</small>
+                </div>
+              </div>
+
+              <div class="timeline-row running">
+                <div>
+                  <strong>benchmark_02.py</strong><br />
+                  <small style="color: #94a3b8">Running • 8m 12s</small>
+                </div>
+                <div class="timeline-bar-container">
+                  <div class="timeline-bar" style="width: 28%"></div>
+                </div>
+                <div style="text-align: right; font-family: Monaco, monospace; font-size: 12px">
+                  <strong>28%</strong>
+                </div>
+              </div>
+
+              <div class="timeline-row running">
+                <div>
+                  <strong>benchmark_03.py</strong><br />
+                  <small style="color: #94a3b8">Running • 3m 45s</small>
+                </div>
+                <div class="timeline-bar-container">
+                  <div class="timeline-bar" style="width: 12%"></div>
+                </div>
+                <div style="text-align: right; font-family: Monaco, monospace; font-size: 12px">
+                  <strong>12%</strong>
+                </div>
+              </div>
+
+              <div class="timeline-row" style="border-left-color: #64748b; opacity: 0.6">
+                <div>
+                  <strong>benchmark_04.py</strong><br />
+                  <small style="color: #94a3b8">Pending • Position #4</small>
+                </div>
+                <div class="timeline-bar-container">
+                  <div
+                    style="
+                      height: 100%;
+                      display: flex;
+                      align-items: center;
+                      padding-left: 12px;
+                      color: #64748b;
+                      font-size: 12px;
+                    "
+                  >
+                    Waiting to start...
+                  </div>
+                </div>
+                <div></div>
+              </div>
+
+              <div class="timeline-row completed">
+                <div>
+                  <strong>benchmark_05.py</strong><br />
+                  <small style="color: #94a3b8">Completed • 2h 34m</small>
+                </div>
+                <div class="timeline-bar-container">
+                  <div style="height: 100%; background: oklch(0.7 0.17 145); width: 100%"></div>
+                </div>
+                <div style="text-align: right; font-family: Monaco, monospace; font-size: 12px">
+                  <strong>100%</strong><br />
+                  <small style="color: #4ade80">✓ Success</small>
+                </div>
+              </div>
+
+              <div class="timeline-row failed">
+                <div>
+                  <strong>benchmark_06.py</strong><br />
+                  <small style="color: #94a3b8">Failed • 8m 02s</small>
+                </div>
+                <div class="timeline-bar-container">
+                  <div style="height: 100%; background: oklch(0.62 0.2 25); width: 35%"></div>
+                </div>
+                <div style="text-align: right; font-family: Monaco, monospace; font-size: 12px">
+                  <strong>35%</strong><br />
+                  <small style="color: #f87171">✗ Error</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Direction 5: Card-Based -->
+      <div class="mockup-section">
+        <div class="mockup-header">
+          <h2 class="mockup-title">Direction 5: Card-Based</h2>
+          <div class="mockup-tags">
+            <span class="tag">Cards</span>
+            <span class="tag density-spacious">Spacious</span>
+            <span class="tag">Modern UI</span>
+          </div>
+        </div>
+        <div class="mockup-description">
+          <strong>Philosophy:</strong> Each job as an independent card with hover interactions. Grid
+          layout adapts to screen width. More white space, cleaner aesthetic. Each card is a
+          self-contained unit with all metadata visible. <br /><br />
+          <strong>Best for:</strong> Users who prefer modern UI patterns and want to interact with
+          jobs as discrete objects. Good for smaller queues (<20 jobs).
+        </div>
+        <div class="mockup-frame">
+          <div class="design-5">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title">Benchmarks</div>
+              </div>
+              <ul class="benchmark-list">
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_01.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_02.py</li>
+                <li class="benchmark-item"><span class="checkbox"></span> benchmark_03.py</li>
+              </ul>
+            </div>
+
+            <div style="background: rgba(15, 23, 42, 0.5)">
+              <div
+                class="panel-header"
+                style="
+                  border-bottom-color: rgba(34, 197, 94, 0.4);
+                  background: rgba(15, 23, 42, 0.9);
+                "
+              >
+                <div class="panel-title">
+                  Queue
+                  <span class="connection-indicator">
+                    <span class="connection-dot"></span>
+                    Connected
+                  </span>
+                </div>
+                <div class="status-summary">3 running • 2 pending • 3 completed</div>
+              </div>
+              <div class="card-grid">
+                <div class="job-card">
+                  <div class="card-header">
+                    <span class="status-badge status-running">⟳ Running</span>
+                    <span class="elapsed-time">12m 34s</span>
+                  </div>
+                  <div class="card-title">benchmark_01.py</div>
+                  <div class="card-meta">
+                    <div>Progress: 45/100 (45%)</div>
+                    <div>Server: research-01</div>
+                    <div>Started: 12:34 PM</div>
+                  </div>
+                </div>
+
+                <div class="job-card">
+                  <div class="card-header">
+                    <span class="status-badge status-running">⟳ Running</span>
+                    <span class="elapsed-time">8m 12s</span>
+                  </div>
+                  <div class="card-title">benchmark_02.py</div>
+                  <div class="card-meta">
+                    <div>Progress: 28/100 (28%)</div>
+                    <div>Server: research-01</div>
+                    <div>Started: 12:38 PM</div>
+                  </div>
+                </div>
+
+                <div class="job-card">
+                  <div class="card-header">
+                    <span class="status-badge status-running">⟳ Running</span>
+                    <span class="elapsed-time">3m 45s</span>
+                  </div>
+                  <div class="card-title">benchmark_03.py</div>
+                  <div class="card-meta">
+                    <div>Progress: 12/100 (12%)</div>
+                    <div>Server: research-01</div>
+                    <div>Started: 12:42 PM</div>
+                  </div>
+                </div>
+
+                <div class="job-card" style="opacity: 0.7">
+                  <div class="card-header">
+                    <span class="status-badge status-pending">◯ Pending</span>
+                    <span style="font-size: 12px; color: #94a3b8">#4</span>
+                  </div>
+                  <div class="card-title">benchmark_04.py</div>
+                  <div class="card-meta">
+                    <div>Waiting to start...</div>
+                    <div>Server: research-01</div>
+                  </div>
+                </div>
+
+                <div class="job-card">
+                  <div class="card-header">
+                    <span class="status-badge status-completed">✓ Completed</span>
+                    <span class="elapsed-time">2h 34m</span>
+                  </div>
+                  <div class="card-title">benchmark_05.py</div>
+                  <div class="card-meta">
+                    <div>Finished: 2:45 PM</div>
+                    <div>Server: research-01</div>
+                    <div>Exit code: 0</div>
+                  </div>
+                </div>
+
+                <div class="job-card">
+                  <div class="card-header">
+                    <span class="status-badge status-failed">✗ Failed</span>
+                    <span class="elapsed-time">8m 02s</span>
+                  </div>
+                  <div class="card-title">benchmark_06.py</div>
+                  <div class="card-meta">
+                    <div>Error: Solver timeout</div>
+                    <div>Failed: 12:50 PM</div>
+                    <div>Exit code: 1</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Direction 6: Minimal Command Line -->
+      <div class="mockup-section">
+        <div class="mockup-header">
+          <h2 class="mockup-title">Direction 6: Minimal Command Line</h2>
+          <div class="mockup-tags">
+            <span class="tag">Terminal</span>
+            <span class="tag">Ultra-Minimal</span>
+            <span class="tag">CLI-Style</span>
+          </div>
+        </div>
+        <div class="mockup-description">
+          <strong>Philosophy:</strong> Terminal-inspired interface with text-based visualization.
+          Monospace only, no glassmorphism, black background. Commands and output mimic CLI tools.
+          Maximum authenticity for command-line power users. <br /><br />
+          <strong>Best for:</strong> Hardcore terminal users who want GUI convenience but CLI
+          aesthetics. Most authentic "tmux with a GUI" interpretation.
+        </div>
+        <div class="mockup-frame">
+          <div class="design-6">
+            <div class="terminal-header">
+              solverpilot@research-01:~/projects/optimization$ solverpilot queue status
+            </div>
+            <div class="terminal-content">
+              <div class="terminal-line">
+                <span class="prompt">$</span>
+                <span class="terminal-command">solverpilot queue list</span>
+              </div>
+              <div class="terminal-line terminal-output">
+                ═══════════════════════════════════════════════════════════════════
+              </div>
+              <div class="terminal-line terminal-output">
+                QUEUE STATUS: 3 running • 2 pending • 5 completed • 1 failed
+              </div>
+              <div class="terminal-line terminal-output">
+                CONNECTION: <span style="color: #0f0">●</span> Connected to research-01
+              </div>
+              <div class="terminal-line terminal-output">
+                ═══════════════════════════════════════════════════════════════════
+              </div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line terminal-output">
+                <span style="color: oklch(0.75 0.12 85)">⟳ RUNNING</span>
+              </div>
+              <div class="terminal-line terminal-output">[1] benchmark_01.py 12m 34s [45%]</div>
+              <div class="terminal-line terminal-output">[2] benchmark_02.py 8m 12s [28%]</div>
+              <div class="terminal-line terminal-output">[3] benchmark_03.py 3m 45s [12%]</div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line terminal-output">
+                <span style="color: #888">◯ PENDING</span>
+              </div>
+              <div class="terminal-line terminal-output">[4] benchmark_04.py #4 in queue</div>
+              <div class="terminal-line terminal-output">[5] benchmark_05.py #5 in queue</div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line terminal-output">
+                <span style="color: oklch(0.7 0.17 145)">✓ COMPLETED</span>
+              </div>
+              <div class="terminal-line terminal-output">[6] benchmark_06.py 2h 34m</div>
+              <div class="terminal-line terminal-output">[7] benchmark_07.py 1h 23m</div>
+              <div class="terminal-line terminal-output">[8] benchmark_08.py 4h 12m</div>
+              <div class="terminal-line terminal-output">[9] benchmark_09.py 3h 45m</div>
+              <div class="terminal-line terminal-output">[10] benchmark_10.py 2h 11m</div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line terminal-output">
+                <span style="color: oklch(0.62 0.2 25)">✗ FAILED</span>
+              </div>
+              <div class="terminal-line terminal-output">
+                [11] benchmark_11.py 8m 02s (solver timeout)
+              </div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line terminal-output">
+                ═══════════════════════════════════════════════════════════════════
+              </div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line">
+                <span class="prompt">$</span>
+                <span class="terminal-command">solverpilot logs benchmark_01.py --tail 5</span>
+              </div>
+              <div class="terminal-line terminal-output">[12:34:12] Starting solver...</div>
+              <div class="terminal-line terminal-output">[12:34:13] Loading problem instance</div>
+              <div class="terminal-line terminal-output">[12:36:45] [progress 45/100]</div>
+              <div class="terminal-line terminal-output">
+                [12:38:23] Iteration 500, obj = 1234.56
+              </div>
+              <div class="terminal-line terminal-output">[12:40:01] Heuristic solution found</div>
+              <div class="terminal-line"></div>
+              <div class="terminal-line">
+                <span class="prompt">$</span>
+                <span style="color: #fff; animation: blink 1s infinite">_</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style="
+          margin-top: 60px;
+          padding: 32px;
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          border-radius: 12px;
+          text-align: center;
+        "
+      >
+        <h3 style="margin-bottom: 16px">Ready to Choose Your Design Direction?</h3>
+        <p style="color: #cbd5e1; margin-bottom: 24px">
+          After exploring these 6 design directions, consider which layout intuitiveness,
+          interaction style, visual weight, and component usage best supports your "tmux++ with a
+          GUI" vision.
+        </p>
+        <p style="color: #94a3b8; font-size: 14px">
+          You can pick a favorite direction as-is, combine elements from multiple directions,
+          request modifications, or use one as a base and iterate.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
