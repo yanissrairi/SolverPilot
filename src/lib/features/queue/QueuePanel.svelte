@@ -105,7 +105,7 @@
                 <span class="font-semibold text-slate-100">{job.benchmark_name}</span>
                 <StatusBadge status={job.status} />
               </div>
-              <p class="text-xs text-slate-500 mt-1">{formatTimestamp(job)}</p>
+              <p class="text-sm text-slate-500 mt-1">{formatTimestamp(job)}</p>
             </div>
           {/each}
         </div>
@@ -128,13 +128,13 @@
                 <div class="flex items-center gap-2">
                   <!-- Queue position number (Task 5.3) -->
                   {#if job.queue_position !== null}
-                    <span class="text-xs text-slate-400">#{String(job.queue_position)}</span>
+                    <span class="text-sm text-slate-400">#{String(job.queue_position)}</span>
                   {/if}
                   <span class="text-slate-200">{job.benchmark_name}</span>
                 </div>
                 <StatusBadge status={job.status} />
               </div>
-              <p class="text-xs text-slate-500 mt-1">{formatTimestamp(job)}</p>
+              <p class="text-sm text-slate-500 mt-1">{formatTimestamp(job)}</p>
             </div>
           {/each}
         </div>
@@ -153,7 +153,7 @@
                 <span class="text-slate-400">{job.benchmark_name}</span>
                 <StatusBadge status={job.status} />
               </div>
-              <p class="text-xs text-slate-500 mt-1">{formatTimestamp(job)}</p>
+              <p class="text-sm text-slate-500 mt-1">{formatTimestamp(job)}</p>
             </div>
           {/each}
         </div>

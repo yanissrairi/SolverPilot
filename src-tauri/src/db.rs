@@ -676,3 +676,145 @@ fn rows_to_jobs_with_queue(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
 
     jobs
 }
+
+// =============================================================================
+// Tests (Story 1.3)
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Creates an in-memory SQLite database for testing
+    async fn init_test_db() -> Result<SqlitePool, Box<dyn std::error::Error>> {
+        let pool = SqlitePool::connect("sqlite::memory:").await?;
+
+        // Create tables
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                python_version TEXT NOT NULL DEFAULT '3.12',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            ",
+        )
+        .execute(&pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER,
+                benchmark_name TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'completed', 'failed', 'killed')),
+                created_at TEXT NOT NULL,
+                started_at TEXT,
+                finished_at TEXT,
+                progress_current INTEGER DEFAULT 0,
+                progress_total INTEGER DEFAULT 0,
+                results_path TEXT,
+                error_message TEXT,
+                log_content TEXT,
+                queue_position INTEGER,
+                queued_at TEXT,
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+            )
+            ",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Create a test project
+        sqlx::query(
+            "INSERT INTO projects (name, python_version, created_at, updated_at) VALUES ('test', '3.12', '2026-01-11', '2026-01-11')"
+        )
+        .execute(&pool)
+        .await?;
+
+        Ok(pool)
+    }
+
+    #[tokio::test]
+    async fn test_get_queued_jobs_returns_only_queued() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert 2 queued jobs (with queue_position)
+        insert_job_with_queue(&pool, 1, "bench_01.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "bench_02.py", 2, "2026-01-11T10:01:00Z").await?;
+
+        // Insert 1 non-queued job (without queue_position - Alpha style)
+        insert_job(&pool, 1, "manual.py").await?;
+
+        let jobs = get_queued_jobs(&pool).await?;
+
+        // Only queued jobs should be returned
+        assert_eq!(jobs.len(), 2, "Expected 2 queued jobs, got {}", jobs.len());
+        assert_eq!(jobs[0].benchmark_name, "bench_01.py");
+        assert_eq!(jobs[1].benchmark_name, "bench_02.py");
+
+        // Verify non-queued job is excluded
+        assert!(
+            !jobs.iter().any(|j| j.benchmark_name == "manual.py"),
+            "Non-queued job should not be returned"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_queued_jobs_sorted_by_status() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert jobs in mixed order (pending first, then we'll update statuses)
+        let _job1_id =
+            insert_job_with_queue(&pool, 1, "pending.py", 1, "2026-01-11T10:00:00Z").await?;
+        let job2_id =
+            insert_job_with_queue(&pool, 1, "completed.py", 2, "2026-01-11T10:01:00Z").await?;
+        let job3_id =
+            insert_job_with_queue(&pool, 1, "running.py", 3, "2026-01-11T10:02:00Z").await?;
+        let job4_id =
+            insert_job_with_queue(&pool, 1, "failed.py", 4, "2026-01-11T10:03:00Z").await?;
+
+        // Update statuses (job1 stays pending)
+        update_job_status(&pool, job2_id, &JobStatus::Completed).await?;
+        update_job_status(&pool, job3_id, &JobStatus::Running).await?;
+        update_job_status(&pool, job4_id, &JobStatus::Failed).await?;
+
+        let jobs = get_queued_jobs(&pool).await?;
+
+        // Should be sorted: running (1) → pending (2) → completed (3) → failed (4)
+        assert_eq!(jobs.len(), 4, "Expected 4 jobs");
+        assert_eq!(
+            jobs[0].status,
+            JobStatus::Running,
+            "First job should be running"
+        );
+        assert_eq!(
+            jobs[1].status,
+            JobStatus::Pending,
+            "Second job should be pending"
+        );
+        assert_eq!(
+            jobs[2].status,
+            JobStatus::Completed,
+            "Third job should be completed"
+        );
+        assert_eq!(
+            jobs[3].status,
+            JobStatus::Failed,
+            "Fourth job should be failed"
+        );
+
+        // Verify names match expected order
+        assert_eq!(jobs[0].benchmark_name, "running.py");
+        assert_eq!(jobs[1].benchmark_name, "pending.py");
+        assert_eq!(jobs[2].benchmark_name, "completed.py");
+        assert_eq!(jobs[3].benchmark_name, "failed.py");
+
+        Ok(())
+    }
+}

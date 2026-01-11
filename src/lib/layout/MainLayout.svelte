@@ -116,8 +116,8 @@
         </div>
       </ResizablePanel>
 
-      <!-- MIDDLE PANEL (Fluid) -->
-      <div class="flex-1 min-w-0 h-full overflow-hidden p-4 px-2">
+      <!-- MIDDLE PANEL (Fluid, min 400px per Story 1.3 AC) -->
+      <div class="flex-1 min-w-[400px] h-full overflow-hidden p-4 px-2">
         {@render middlePanel?.()}
       </div>
 
