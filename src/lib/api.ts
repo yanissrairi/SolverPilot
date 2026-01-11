@@ -258,6 +258,50 @@ export async function getAllQueueJobs(): Promise<Job[]> {
   return invoke('get_all_queue_jobs');
 }
 
+// =============================================================================
+// Queue Management (Story 1.4)
+// =============================================================================
+
+/**
+ * Remove a job from the queue (Story 1.4)
+ * Only pending jobs can be removed. Running/completed jobs are protected.
+ */
+export async function removeJobFromQueue(jobId: number): Promise<void> {
+  return invoke('remove_job_from_queue', { jobId });
+}
+
+/**
+ * Move a job to the front of the queue (Story 1.4)
+ * Only pending jobs can be moved. Sets queue_position to 1.
+ */
+export async function moveJobToFront(jobId: number): Promise<void> {
+  return invoke('move_job_to_front', { jobId });
+}
+
+/**
+ * Move a job to the end of the queue (Story 1.4)
+ * Only pending jobs can be moved. Sets queue_position to max.
+ */
+export async function moveJobToEnd(jobId: number): Promise<void> {
+  return invoke('move_job_to_end', { jobId });
+}
+
+/**
+ * Reorder a job to a new position in the queue (Story 1.4)
+ * Only pending jobs can be reordered. Shifts other jobs accordingly.
+ */
+export async function reorderQueueJob(jobId: number, newPosition: number): Promise<void> {
+  return invoke('reorder_queue_job', { jobId, newPosition });
+}
+
+/**
+ * Cancel all pending jobs in the queue (Story 1.4)
+ * Running and completed jobs are preserved. Returns count of deleted jobs.
+ */
+export async function cancelAllPendingJobs(): Promise<number> {
+  return invoke('cancel_all_pending_jobs');
+}
+
 export async function startNextJob(): Promise<Job | null> {
   return invoke('start_next_job');
 }

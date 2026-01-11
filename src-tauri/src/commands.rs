@@ -819,6 +819,85 @@ pub async fn get_all_queue_jobs(state: State<'_, AppState>) -> Result<Vec<Job>, 
     db::get_queued_jobs(&pool).await
 }
 
+/// Remove a job from the queue (Story 1.4)
+/// Only pending jobs can be removed. Running/completed jobs are protected.
+#[tauri::command]
+pub async fn remove_job_from_queue(state: State<'_, AppState>, job_id: i64) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    db::remove_job_from_queue(&pool, job_id).await
+}
+
+/// Move a job to the front of the queue (Story 1.4)
+/// Only pending jobs can be moved. Sets `queue_position` to 1.
+#[tauri::command]
+pub async fn move_job_to_front(state: State<'_, AppState>, job_id: i64) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    db::move_job_to_front(&pool, job_id).await
+}
+
+/// Move a job to the end of the queue (Story 1.4)
+/// Only pending jobs can be moved. Sets `queue_position` to max+1.
+#[tauri::command]
+pub async fn move_job_to_end(state: State<'_, AppState>, job_id: i64) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    db::move_job_to_end(&pool, job_id).await
+}
+
+/// Reorder a job to a new position in the queue (Story 1.4)
+/// Only pending jobs can be reordered. Shifts other jobs accordingly.
+#[tauri::command]
+pub async fn reorder_queue_job(
+    state: State<'_, AppState>,
+    job_id: i64,
+    new_position: i32,
+) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    db::reorder_queue_job(&pool, job_id, new_position).await
+}
+
+/// Cancel all pending jobs in the queue (Story 1.4)
+/// Running and completed jobs are preserved. Returns count of deleted jobs.
+#[tauri::command]
+pub async fn cancel_all_pending_jobs(state: State<'_, AppState>) -> Result<u32, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    db::cancel_all_pending_jobs(&pool).await
+}
+
 #[tauri::command]
 pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, String> {
     let config = state

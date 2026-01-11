@@ -677,6 +677,255 @@ fn rows_to_jobs_with_queue(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
     jobs
 }
 
+// ============================================================================
+// Queue Management Functions (Story 1.4)
+// ============================================================================
+
+/// Removes a pending job from the queue and renumbers remaining positions.
+/// Returns error if job is not pending (cannot remove running/completed jobs).
+pub async fn remove_job_from_queue(pool: &SqlitePool, job_id: i64) -> Result<(), String> {
+    // Start transaction for atomic operation
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| format!("Failed to begin transaction: {e}"))?;
+
+    // Get current job status and position (verify pending + exists)
+    let job = sqlx::query(
+        "SELECT status, queue_position FROM jobs WHERE id = ? AND queue_position IS NOT NULL",
+    )
+    .bind(job_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| format!("Failed to query job: {e}"))?
+    .ok_or("Job not found in queue")?;
+
+    let status: String = job.get("status");
+    if status != "pending" {
+        return Err(format!(
+            "Cannot remove job with status '{status}'. Only pending jobs can be removed."
+        ));
+    }
+
+    let position: i64 = job.get("queue_position");
+
+    // Delete the job
+    sqlx::query("DELETE FROM jobs WHERE id = ?")
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to delete job: {e}"))?;
+
+    // Renumber remaining jobs (shift positions down)
+    sqlx::query(
+        "UPDATE jobs SET queue_position = queue_position - 1 WHERE queue_position > ? AND status = 'pending'",
+    )
+    .bind(position)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("Failed to renumber queue: {e}"))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| format!("Failed to commit transaction: {e}"))?;
+
+    Ok(())
+}
+
+/// Moves a pending job to position #1, shifting others down.
+pub async fn move_job_to_front(pool: &SqlitePool, job_id: i64) -> Result<(), String> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| format!("Failed to begin transaction: {e}"))?;
+
+    // Verify job is pending and get current position
+    let job = sqlx::query("SELECT status, queue_position FROM jobs WHERE id = ?")
+        .bind(job_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to query job: {e}"))?
+        .ok_or("Job not found")?;
+
+    let status: String = job.get("status");
+    if status != "pending" {
+        return Err(format!(
+            "Cannot move job with status '{status}'. Only pending jobs can be reordered."
+        ));
+    }
+
+    let current_position: i64 = job.get("queue_position");
+    if current_position == 1 {
+        return Ok(()); // Already at front
+    }
+
+    // Shift jobs between position 1 and current position (exclusive) down by 1
+    sqlx::query(
+        "UPDATE jobs SET queue_position = queue_position + 1 WHERE queue_position < ? AND status = 'pending'",
+    )
+    .bind(current_position)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("Failed to shift jobs: {e}"))?;
+
+    // Move target job to position 1
+    sqlx::query("UPDATE jobs SET queue_position = 1 WHERE id = ?")
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to move job: {e}"))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| format!("Failed to commit transaction: {e}"))?;
+
+    Ok(())
+}
+
+/// Moves a pending job to the end of the queue.
+pub async fn move_job_to_end(pool: &SqlitePool, job_id: i64) -> Result<(), String> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| format!("Failed to begin transaction: {e}"))?;
+
+    // Verify job is pending and get current position
+    let job = sqlx::query("SELECT status, queue_position FROM jobs WHERE id = ?")
+        .bind(job_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to query job: {e}"))?
+        .ok_or("Job not found")?;
+
+    let status: String = job.get("status");
+    if status != "pending" {
+        return Err(format!(
+            "Cannot move job with status '{status}'. Only pending jobs can be reordered."
+        ));
+    }
+
+    let current_position: i64 = job.get("queue_position");
+
+    // Get max position among pending jobs
+    let max_row = sqlx::query(
+        "SELECT COALESCE(MAX(queue_position), 0) as max_pos FROM jobs WHERE status = 'pending'",
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| format!("Failed to get max position: {e}"))?;
+
+    let max_position: i64 = max_row.get("max_pos");
+    if current_position == max_position {
+        return Ok(()); // Already at end
+    }
+
+    // Shift jobs after current position up by 1 (to fill the gap)
+    sqlx::query(
+        "UPDATE jobs SET queue_position = queue_position - 1 WHERE queue_position > ? AND status = 'pending'",
+    )
+    .bind(current_position)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("Failed to shift jobs: {e}"))?;
+
+    // Move target job to end (max_position stays same since we shifted)
+    sqlx::query("UPDATE jobs SET queue_position = ? WHERE id = ?")
+        .bind(max_position)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to move job: {e}"))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| format!("Failed to commit transaction: {e}"))?;
+
+    Ok(())
+}
+
+/// Reorders a job to a new position, shifting other jobs accordingly.
+pub async fn reorder_queue_job(
+    pool: &SqlitePool,
+    job_id: i64,
+    new_position: i32,
+) -> Result<(), String> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| format!("Failed to begin transaction: {e}"))?;
+
+    // Verify job is pending and get current position
+    let job = sqlx::query("SELECT status, queue_position FROM jobs WHERE id = ?")
+        .bind(job_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to query job: {e}"))?
+        .ok_or("Job not found")?;
+
+    let status: String = job.get("status");
+    if status != "pending" {
+        return Err(format!(
+            "Cannot reorder job with status '{status}'. Only pending jobs can be reordered."
+        ));
+    }
+
+    let current_position: i64 = job.get("queue_position");
+    let new_pos = i64::from(new_position);
+
+    if current_position == new_pos {
+        return Ok(()); // No change needed
+    }
+
+    if new_pos < current_position {
+        // Moving up: shift jobs in range [new_pos, current_pos) down by 1
+        sqlx::query(
+            "UPDATE jobs SET queue_position = queue_position + 1 WHERE queue_position >= ? AND queue_position < ? AND status = 'pending'",
+        )
+        .bind(new_pos)
+        .bind(current_position)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to shift jobs: {e}"))?;
+    } else {
+        // Moving down: shift jobs in range (current_pos, new_pos] up by 1
+        sqlx::query(
+            "UPDATE jobs SET queue_position = queue_position - 1 WHERE queue_position > ? AND queue_position <= ? AND status = 'pending'",
+        )
+        .bind(current_position)
+        .bind(new_pos)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to shift jobs: {e}"))?;
+    }
+
+    // Set target job to new position
+    sqlx::query("UPDATE jobs SET queue_position = ? WHERE id = ?")
+        .bind(new_pos)
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to move job: {e}"))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| format!("Failed to commit transaction: {e}"))?;
+
+    Ok(())
+}
+
+/// Deletes all pending jobs from queue, returns count deleted.
+pub async fn cancel_all_pending_jobs(pool: &SqlitePool) -> Result<u32, String> {
+    let result =
+        sqlx::query("DELETE FROM jobs WHERE status = 'pending' AND queue_position IS NOT NULL")
+            .execute(pool)
+            .await
+            .map_err(|e| format!("Failed to cancel pending jobs: {e}"))?;
+
+    // Safe: rows_affected is always non-negative
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(result.rows_affected() as u32)
+}
+
 // =============================================================================
 // Tests (Story 1.3)
 // =============================================================================
@@ -814,6 +1063,184 @@ mod tests {
         assert_eq!(jobs[1].benchmark_name, "pending.py");
         assert_eq!(jobs[2].benchmark_name, "completed.py");
         assert_eq!(jobs[3].benchmark_name, "failed.py");
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // Story 1.4 - Queue Management Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_remove_job_renumbers_positions() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert 5 jobs with positions 1-5
+        insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job2.py", 2, "2026-01-11T10:01:00Z").await?;
+        let job3_id = insert_job_with_queue(&pool, 1, "job3.py", 3, "2026-01-11T10:02:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job4.py", 4, "2026-01-11T10:03:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job5.py", 5, "2026-01-11T10:04:00Z").await?;
+
+        // Remove job at position 3
+        remove_job_from_queue(&pool, job3_id).await?;
+
+        // Verify remaining jobs renumbered correctly
+        let jobs = get_queued_jobs(&pool).await?;
+        assert_eq!(jobs.len(), 4);
+        assert_eq!(jobs[0].benchmark_name, "job1.py");
+        assert_eq!(jobs[0].queue_position, Some(1));
+        assert_eq!(jobs[1].benchmark_name, "job2.py");
+        assert_eq!(jobs[1].queue_position, Some(2));
+        assert_eq!(jobs[2].benchmark_name, "job4.py");
+        assert_eq!(jobs[2].queue_position, Some(3)); // Was 4, now 3
+        assert_eq!(jobs[3].benchmark_name, "job5.py");
+        assert_eq!(jobs[3].queue_position, Some(4)); // Was 5, now 4
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_running_job_fails() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        let job_id = insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        update_job_status(&pool, job_id, &JobStatus::Running).await?;
+
+        let result = remove_job_from_queue(&pool, job_id).await;
+        assert!(result.is_err());
+        assert!(result.err().unwrap_or_default().contains("running"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_move_to_front_shifts_jobs() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job2.py", 2, "2026-01-11T10:01:00Z").await?;
+        let job3_id = insert_job_with_queue(&pool, 1, "job3.py", 3, "2026-01-11T10:02:00Z").await?;
+
+        move_job_to_front(&pool, job3_id).await?;
+
+        let jobs = get_queued_jobs(&pool).await?;
+        assert_eq!(jobs[0].benchmark_name, "job3.py");
+        assert_eq!(jobs[0].queue_position, Some(1));
+        assert_eq!(jobs[1].benchmark_name, "job1.py");
+        assert_eq!(jobs[1].queue_position, Some(2));
+        assert_eq!(jobs[2].benchmark_name, "job2.py");
+        assert_eq!(jobs[2].queue_position, Some(3));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_move_to_end_shifts_jobs() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        let job1_id = insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job2.py", 2, "2026-01-11T10:01:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job3.py", 3, "2026-01-11T10:02:00Z").await?;
+
+        move_job_to_end(&pool, job1_id).await?;
+
+        let jobs = get_queued_jobs(&pool).await?;
+        assert_eq!(jobs[0].benchmark_name, "job2.py");
+        assert_eq!(jobs[0].queue_position, Some(1));
+        assert_eq!(jobs[1].benchmark_name, "job3.py");
+        assert_eq!(jobs[1].queue_position, Some(2));
+        assert_eq!(jobs[2].benchmark_name, "job1.py");
+        assert_eq!(jobs[2].queue_position, Some(3));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reorder_job_move_up() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job2.py", 2, "2026-01-11T10:01:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job3.py", 3, "2026-01-11T10:02:00Z").await?;
+        let job4_id = insert_job_with_queue(&pool, 1, "job4.py", 4, "2026-01-11T10:03:00Z").await?;
+
+        // Move job4 from position 4 to position 2
+        reorder_queue_job(&pool, job4_id, 2).await?;
+
+        let jobs = get_queued_jobs(&pool).await?;
+        assert_eq!(jobs[0].benchmark_name, "job1.py");
+        assert_eq!(jobs[0].queue_position, Some(1));
+        assert_eq!(jobs[1].benchmark_name, "job4.py"); // Moved here
+        assert_eq!(jobs[1].queue_position, Some(2));
+        assert_eq!(jobs[2].benchmark_name, "job2.py"); // Shifted
+        assert_eq!(jobs[2].queue_position, Some(3));
+        assert_eq!(jobs[3].benchmark_name, "job3.py"); // Shifted
+        assert_eq!(jobs[3].queue_position, Some(4));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reorder_job_move_down() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        let job1_id = insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job2.py", 2, "2026-01-11T10:01:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job3.py", 3, "2026-01-11T10:02:00Z").await?;
+        insert_job_with_queue(&pool, 1, "job4.py", 4, "2026-01-11T10:03:00Z").await?;
+
+        // Move job1 from position 1 to position 3
+        reorder_queue_job(&pool, job1_id, 3).await?;
+
+        let jobs = get_queued_jobs(&pool).await?;
+        assert_eq!(jobs[0].benchmark_name, "job2.py");
+        assert_eq!(jobs[0].queue_position, Some(1)); // Shifted up
+        assert_eq!(jobs[1].benchmark_name, "job3.py");
+        assert_eq!(jobs[1].queue_position, Some(2)); // Shifted up
+        assert_eq!(jobs[2].benchmark_name, "job1.py"); // Moved here
+        assert_eq!(jobs[2].queue_position, Some(3));
+        assert_eq!(jobs[3].benchmark_name, "job4.py");
+        assert_eq!(jobs[3].queue_position, Some(4)); // Unchanged
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cancel_all_pending_preserves_running() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        insert_job_with_queue(&pool, 1, "pending1.py", 1, "2026-01-11T10:00:00Z").await?;
+        let running_id =
+            insert_job_with_queue(&pool, 1, "running.py", 2, "2026-01-11T10:01:00Z").await?;
+        insert_job_with_queue(&pool, 1, "pending2.py", 3, "2026-01-11T10:02:00Z").await?;
+
+        update_job_status(&pool, running_id, &JobStatus::Running).await?;
+
+        let count = cancel_all_pending_jobs(&pool).await?;
+        assert_eq!(count, 2); // Only pending jobs deleted
+
+        let jobs = get_queued_jobs(&pool).await?;
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].status, JobStatus::Running);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_status_validation_on_modify() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        let job_id = insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+
+        // Test with completed status
+        update_job_status(&pool, job_id, &JobStatus::Completed).await?;
+
+        // All queue operations should fail on completed job
+        assert!(remove_job_from_queue(&pool, job_id).await.is_err());
+        assert!(move_job_to_front(&pool, job_id).await.is_err());
+        assert!(move_job_to_end(&pool, job_id).await.is_err());
+        assert!(reorder_queue_job(&pool, job_id, 2).await.is_err());
 
         Ok(())
     }

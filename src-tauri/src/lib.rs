@@ -67,6 +67,12 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::queue_jobs,
             commands::queue_benchmarks, // Story 1.2 - Queue with position
             commands::get_all_queue_jobs, // Story 1.3 - Get queued jobs
+            // Story 1.4 - Queue management
+            commands::remove_job_from_queue,
+            commands::move_job_to_front,
+            commands::move_job_to_end,
+            commands::reorder_queue_job,
+            commands::cancel_all_pending_jobs,
             commands::start_next_job,
             commands::stop_job,
             commands::kill_job,
