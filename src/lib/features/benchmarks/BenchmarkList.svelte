@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import type { SvelteSet } from 'svelte/reactivity';
   import type { Benchmark, Project } from '../../types';
+  import { registerShortcut, unregisterShortcut } from '../../stores/shortcuts.svelte';
 
   let {
     benchmarks,
@@ -31,11 +33,145 @@
     onremove: (bench: Benchmark) => void;
     onrun: () => void;
   }>();
+
+  // Reference to the benchmark list container for click-outside detection (H1 fix)
+  let listContainerRef: HTMLElement | null = $state(null);
+
+  // Track last clicked index for range selection (Subtask 1.1)
+  let lastClickedIndex = $state<number | null>(null);
+
+  // Derived selection count for display (Subtask 1.2)
+  let selectedCount = $derived(selectedBenchmarks.size);
+  let selectionSummary = $derived(
+    selectedCount > 0
+      ? `${selectedCount.toString()} benchmark${selectedCount === 1 ? '' : 's'} selected`
+      : '',
+  );
+
+  // Enhanced click handler for multi-select (Task 2)
+  function handleBenchmarkClick(event: MouseEvent, bench: Benchmark, index: number): void {
+    // Prevent event from bubbling to document click handler
+    event.stopPropagation();
+
+    if (event.shiftKey) {
+      // Range selection: Shift+Click (Subtask 2.2) - M2 fix: handle null lastClickedIndex
+      const start = Math.min(lastClickedIndex ?? 0, index);
+      const end = Math.max(lastClickedIndex ?? 0, index);
+      for (let i = start; i <= end; i++) {
+        selectedBenchmarks.add(benchmarks[i].name);
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      // Individual toggle: Ctrl/Cmd+Click (Subtask 2.3)
+      if (selectedBenchmarks.has(bench.name)) {
+        selectedBenchmarks.delete(bench.name);
+      } else {
+        selectedBenchmarks.add(bench.name);
+      }
+    } else {
+      // Single selection: clear others and select this one (Subtask 2.1)
+      ontoggle(bench.name);
+    }
+    lastClickedIndex = index;
+  }
+
+  // Keyboard handler for benchmark row (M3 fix: proper a11y instead of svelte-ignore)
+  function handleBenchmarkKeydown(event: KeyboardEvent, bench: Benchmark, index: number): void {
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      // Toggle selection on Space/Enter
+      ontoggle(bench.name);
+      lastClickedIndex = index;
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      // Move focus to next benchmark (H2 fix)
+      if (index < benchmarks.length - 1) {
+        focusRowByIndex(index + 1);
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      // Move focus to previous benchmark (H2 fix)
+      if (index > 0) {
+        focusRowByIndex(index - 1);
+      }
+    }
+  }
+
+  // Focus a benchmark row by index (H2 fix)
+  function focusRowByIndex(index: number): void {
+    const row = listContainerRef?.querySelector(`[data-benchmark-index="${index.toString()}"]`);
+    if (row instanceof HTMLElement) {
+      row.focus();
+    }
+  }
+
+  // Click-outside handler to clear selection (H1 fix: AC6 "click elsewhere")
+  function handleDocumentClick(event: MouseEvent): void {
+    if (listContainerRef && !listContainerRef.contains(event.target as Node)) {
+      if (selectedBenchmarks.size > 0) {
+        selectedBenchmarks.clear();
+        lastClickedIndex = null;
+      }
+    }
+  }
+
+  // Register keyboard shortcuts (Task 3)
+  onMount(() => {
+    // H1 fix: Add document click listener for click-outside
+    document.addEventListener('click', handleDocumentClick);
+
+    // Space key: Toggle focused benchmark (Subtask 3.1)
+    registerShortcut({
+      key: ' ',
+      action: () => {
+        if (focusedBenchmark) {
+          ontoggle(focusedBenchmark.name);
+        }
+      },
+      description: 'Toggle selected benchmark',
+    });
+
+    // Q key: Queue selected benchmarks (Subtask 3.2)
+    registerShortcut({
+      key: 'q',
+      action: () => {
+        if (selectedBenchmarks.size > 0) {
+          // TODO Story 1.2: Call queueBenchmarks API
+          console.log(
+            `Queue trigger: ${selectedBenchmarks.size.toString()} benchmarks ready for queue`,
+          );
+        }
+      },
+      description: 'Queue selected benchmarks',
+    });
+
+    // Escape key: Clear selection (Subtask 3.3)
+    registerShortcut({
+      key: 'Escape',
+      action: () => {
+        selectedBenchmarks.clear();
+        lastClickedIndex = null;
+      },
+      description: 'Clear selection',
+    });
+  });
+
+  onDestroy(() => {
+    // H1 fix: Remove document click listener
+    document.removeEventListener('click', handleDocumentClick);
+    unregisterShortcut(' ');
+    unregisterShortcut('q');
+    unregisterShortcut('Escape');
+  });
 </script>
 
 <div class="flex-1 flex flex-col min-h-0">
   <div class="p-4 border-b border-white/5 flex items-center justify-between bg-slate-800/30">
-    <h2 class="font-semibold text-white">Benchmarks</h2>
+    <div>
+      <h2 class="font-semibold text-white">Benchmarks</h2>
+      {#if selectionSummary}
+        <p class="text-xs text-slate-400 mt-0.5" aria-live="polite">{selectionSummary}</p>
+      {/if}
+    </div>
     <div class="flex gap-2">
       <button
         onclick={onadd}
@@ -104,7 +240,13 @@
       </button>
     </div>
 
-    <div class="overflow-y-auto flex-1 p-2 space-y-1 custom-scrollbar">
+    <div
+      class="overflow-y-auto flex-1 p-2 space-y-1 custom-scrollbar"
+      bind:this={listContainerRef}
+      role="listbox"
+      aria-label="Benchmark list"
+      aria-multiselectable="true"
+    >
       {#if benchmarkError}
         <div
           class="mb-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs flex items-center justify-between"
@@ -119,17 +261,21 @@
           <p class="text-xs mt-1">Cliquez sur + pour ajouter un fichier .py</p>
         </div>
       {:else}
-        {#each benchmarks as bench (bench.id)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
+        {#each benchmarks as bench, index (bench.id)}
           <div
-            class={`flex items-center gap-3 p-3 rounded-lg transition-all border ${focusedBenchmark?.path === bench.path ? 'ring-2 ring-purple-500/50' : ''} ${selectedBenchmarks.has(bench.name) ? 'bg-blue-500/10 border-blue-500/50' : 'hover:bg-white/5 border-transparent'}`}
+            class={`flex items-center gap-3 p-3 rounded-lg transition-all border cursor-pointer outline-none ${focusedBenchmark?.path === bench.path ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900' : ''} ${selectedBenchmarks.has(bench.name) ? 'bg-blue-500/10 border-blue-500/50' : 'hover:bg-white/5 border-transparent'} focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900`}
+            role="option"
+            tabindex="0"
+            aria-selected={selectedBenchmarks.has(bench.name)}
+            data-benchmark-index={index}
+            onclick={(e: MouseEvent) => handleBenchmarkClick(e, bench, index)}
+            onkeydown={(e: KeyboardEvent) => handleBenchmarkKeydown(e, bench, index)}
           >
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class={`w-4 h-4 rounded-sm border flex items-center justify-center transition-colors cursor-pointer ${selectedBenchmarks.has(bench.name) ? 'bg-blue-500 border-blue-500' : 'border-slate-600 hover:border-blue-400'}`}
-              onclick={() => ontoggle(bench.name)}
+              class={`w-4 h-4 rounded-sm border flex items-center justify-center transition-colors ${selectedBenchmarks.has(bench.name) ? 'bg-blue-500 border-blue-500' : 'border-slate-600 group-hover:border-blue-400'}`}
+              role="checkbox"
+              aria-checked={selectedBenchmarks.has(bench.name)}
+              aria-label={`Select ${bench.name}`}
             >
               {#if selectedBenchmarks.has(bench.name)}
                 <svg
@@ -141,17 +287,18 @@
                 >
               {/if}
             </div>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <span
-              class={`text-sm flex-1 cursor-pointer truncate ${selectedBenchmarks.has(bench.name) ? 'text-white font-medium' : 'text-slate-300'}`}
-              onclick={() => onfocus(bench)}
+              class={`text-sm flex-1 truncate ${selectedBenchmarks.has(bench.name) ? 'text-white font-medium' : 'text-slate-300'}`}
               title={bench.path}>{bench.name}</span
             >
             <button
-              onclick={() => onfocus(bench)}
+              onclick={(e: MouseEvent) => {
+                e.stopPropagation();
+                onfocus(bench);
+              }}
               class={`p-1 rounded-sm transition-colors ${focusedBenchmark?.path === bench.path ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-white/10 text-slate-500 hover:text-slate-300'}`}
               title="Analyze dependencies"
+              aria-label={`Analyze ${bench.name} dependencies`}
             >
               <svg
                 class="w-3.5 h-3.5"
@@ -165,9 +312,13 @@
               </svg>
             </button>
             <button
-              onclick={() => onremove(bench)}
+              onclick={(e: MouseEvent) => {
+                e.stopPropagation();
+                onremove(bench);
+              }}
               class="p-1 rounded-sm hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
               title="Remove from project"
+              aria-label={`Remove ${bench.name} from project`}
             >
               <svg
                 class="w-3.5 h-3.5"
