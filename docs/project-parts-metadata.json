@@ -1,0 +1,29 @@
+{
+  "repository_type": "multi-part",
+  "project_name": "SolverPilot",
+  "description": "GUI for running optimization solvers and benchmarks on remote servers via SSH",
+  "parts": [
+    {
+      "part_id": "frontend",
+      "display_name": "Frontend (UI)",
+      "root_path": "src/",
+      "project_type_id": "desktop",
+      "primary_language": "TypeScript",
+      "framework": "Svelte 5",
+      "build_tool": "Vite",
+      "purpose": "User interface for benchmark management"
+    },
+    {
+      "part_id": "backend",
+      "display_name": "Backend (Core)",
+      "root_path": "src-tauri/",
+      "project_type_id": "desktop",
+      "primary_language": "Rust",
+      "framework": "Tauri 2",
+      "database": "SQLite",
+      "purpose": "SSH management, job execution, database operations"
+    }
+  ],
+  "integration_type": "tauri_ipc",
+  "integration_description": "Frontend communicates with backend via Tauri IPC commands"
+}
