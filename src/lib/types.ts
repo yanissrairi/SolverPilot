@@ -22,6 +22,10 @@ export interface AppConfig {
   tools: {
     uv_path: string;
   };
+  // Story 1.5 - Queue settings for duplicate handling
+  queue_settings?: {
+    duplicate_handling: 'warn' | 'prevent' | 'allow';
+  };
 }
 
 // =============================================================================
@@ -86,7 +90,7 @@ export interface JobStatusResponse {
 // Story 1.5 - Duplicate Detection & Queue Filtering
 // =============================================================================
 
-export type QueueFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed';
+export type QueueFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'killed';
 
 export interface DuplicateCheckResult {
   isDuplicate: boolean;

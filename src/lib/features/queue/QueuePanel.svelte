@@ -25,6 +25,7 @@
   let showFilterDropdown = $state(false);
 
   // Story 1.5 - Filtered jobs based on activeFilter
+  // Note: 'completed' filter includes only 'completed' status, not 'failed' or 'killed'
   let filteredJobs = $derived(() => {
     if (activeFilter === 'all') {
       return jobs;
@@ -66,21 +67,22 @@
   function setFilter(filter: QueueFilter) {
     activeFilter = filter;
     showFilterDropdown = false;
-    localStorage.setItem('queue_filter', filter);
+    localStorage.setItem('solverpilot_queue_filter', filter);
   }
 
-  // Story 1.5 - Filter options
+  // Story 1.5 - Filter options (includes 'killed' for completeness)
   const filterOptions: { value: QueueFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'pending', label: 'Pending' },
     { value: 'running', label: 'Running' },
     { value: 'completed', label: 'Completed' },
     { value: 'failed', label: 'Failed' },
+    { value: 'killed', label: 'Killed' },
   ];
 
   onMount(() => {
     // Story 1.5 - Load filter preference from localStorage
-    const savedFilter = localStorage.getItem('queue_filter');
+    const savedFilter = localStorage.getItem('solverpilot_queue_filter');
     if (savedFilter !== null) {
       activeFilter = savedFilter as QueueFilter;
     }
@@ -464,6 +466,14 @@
                 <StatusBadge status={job.status} />
               </div>
               <p class="text-sm text-slate-500 mt-1">{formatTimestamp(job)}</p>
+              <!-- Story 1.5 AC8: Show error message snippet for failed jobs -->
+              {#if (job.status === 'failed' || job.status === 'killed') && job.error_message}
+                <p class="text-sm text-red-400/80 mt-1 truncate" title={job.error_message}>
+                  {job.error_message.length > 80
+                    ? job.error_message.substring(0, 80) + '...'
+                    : job.error_message}
+                </p>
+              {/if}
             </div>
           {/each}
         </div>
@@ -490,11 +500,14 @@
 
 <!-- Close dropdown when clicking outside (Story 1.5) -->
 {#if showFilterDropdown}
-  <button
+  <div
     class="fixed inset-0 z-0"
     onclick={() => {
       showFilterDropdown = false;
     }}
-    aria-label="Close filter dropdown"
-  ></button>
+    onkeydown={e => {
+      if (e.key === 'Escape') showFilterDropdown = false;
+    }}
+    role="presentation"
+  ></div>
 {/if}

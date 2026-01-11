@@ -64,23 +64,24 @@ pub struct ToolsConfig {
     pub uv_path: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+/// How to handle duplicate jobs when queueing benchmarks (Story 1.5)
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DuplicateHandling {
+    /// Show warning toast with "Add Anyway" option (default)
+    #[default]
+    Warn,
+    /// Block duplicates entirely with error message
+    Prevent,
+    /// Allow duplicates without any warning
+    Allow,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct QueueSettings {
-    /// How to handle duplicate jobs: "warn" (default) | "prevent" | "allow"
-    #[serde(default = "default_duplicate_handling")]
-    pub duplicate_handling: String,
-}
-
-fn default_duplicate_handling() -> String {
-    "warn".to_string()
-}
-
-impl Default for QueueSettings {
-    fn default() -> Self {
-        Self {
-            duplicate_handling: default_duplicate_handling(),
-        }
-    }
+    /// How to handle duplicate jobs when queueing
+    #[serde(default)]
+    pub duplicate_handling: DuplicateHandling,
 }
 
 fn default_uv_path() -> String {

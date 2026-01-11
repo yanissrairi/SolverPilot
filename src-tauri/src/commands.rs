@@ -758,20 +758,19 @@ pub async fn queue_benchmarks(
             let dup_check = db::check_duplicate_job(&pool, &benchmark.name).await?;
 
             if dup_check.is_duplicate {
-                let duplicate_handling = &config.queue_settings.duplicate_handling;
+                use crate::config::DuplicateHandling;
 
-                match duplicate_handling.as_str() {
-                    "prevent" => {
+                match config.queue_settings.duplicate_handling {
+                    DuplicateHandling::Prevent => {
                         return Err(format!(
                             "{} is already queued. Duplicates are not allowed.",
                             benchmark.name
                         ));
                     }
-                    "allow" => {
+                    DuplicateHandling::Allow => {
                         // Continue to queue without warning
                     }
-                    // Default "warn" or unknown setting
-                    _ => {
+                    DuplicateHandling::Warn => {
                         // Return special error that frontend handles with confirmation dialog
                         return Err(format!(
                             "DUPLICATE_WARNING:{}:{}",

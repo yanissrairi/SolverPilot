@@ -1,6 +1,6 @@
 # Story 1.5: Duplicate Detection & Queue Filtering
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -862,3 +862,39 @@ No debug logs required - all tests passed on first run after compilation fixes.
 - src/lib/ui/Toast.svelte (added action button rendering)
 - src/lib/features/benchmarks/BenchmarkList.svelte (enhanced Q-key handler with duplicate warning)
 - src/lib/features/queue/QueuePanel.svelte (added filter dropdown, localStorage persistence, derived filtering)
+
+## Code Review
+
+### Review Date: 2026-01-11
+
+### Review Agent: Claude Opus 4.5 (claude-opus-4-5-20251101)
+
+### Issues Found & Fixed
+
+| ID  | Severity | Issue                                            | Fix Applied                                                                                              |
+| --- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| H1  | HIGH     | AC8 not implemented - Failed jobs missing error  | Added `job.error_message` snippet rendering in QueuePanel completed section (truncated to 80 chars)      |
+| H2  | HIGH     | TypeScript AppConfig missing queue_settings      | Added `queue_settings?: { duplicate_handling: 'warn' \| 'prevent' \| 'allow' }` to types.ts              |
+| H4  | HIGH     | 'killed' status excluded from QueueFilter type   | Added 'killed' to QueueFilter type and filter dropdown options                                           |
+| M1  | MEDIUM   | No validation of duplicate_handling config value | Changed from `String` to `DuplicateHandling` enum in config.rs with `#[serde(rename_all = "lowercase")]` |
+| M2  | MEDIUM   | Clickaway overlay used `<button>` element        | Changed to `<div role="presentation">` with svelte-ignore for a11y                                       |
+| M3  | MEDIUM   | localStorage key not namespaced                  | Changed `queue_filter` to `solverpilot_queue_filter`                                                     |
+
+### Files Modified During Review
+
+**Backend:**
+
+- `src-tauri/src/config.rs` - Added `DuplicateHandling` enum with Warn/Prevent/Allow variants
+- `src-tauri/src/commands.rs` - Updated match statement to use enum variants instead of string comparison
+
+**Frontend:**
+
+- `src/lib/types.ts` - Added queue_settings to AppConfig, added 'killed' to QueueFilter
+- `src/lib/features/queue/QueuePanel.svelte` - Added error message snippet, killed filter option, fixed overlay, namespaced localStorage key
+
+### Verification
+
+- ✅ `bun run check` - TypeScript type checks pass
+- ✅ `bun run lint` - ESLint checks pass
+- ✅ `cargo clippy` - Rust linting passes
+- ✅ All 7 backend unit tests pass
