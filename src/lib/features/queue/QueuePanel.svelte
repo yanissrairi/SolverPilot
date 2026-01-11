@@ -18,6 +18,7 @@
   let cancelAllLoading = $state(false);
   let draggedJobId = $state<number | null>(null);
   let dropTargetPosition = $state<number | null>(null);
+  let operationInProgress = $state(false);
 
   // Group jobs by status for visual hierarchy (Task 5)
   let jobsByStatus = $derived.by((): { running: Job[]; pending: Job[]; completed: Job[] } => {
@@ -86,35 +87,49 @@
 
   // Story 1.4 - Job removal handler
   async function handleRemoveJob(jobId: number) {
+    if (operationInProgress) return;
     try {
+      operationInProgress = true;
       await removeJobFromQueue(jobId);
       toast.success('Job removed from queue');
       await loadJobs();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(message);
+    } finally {
+      operationInProgress = false;
     }
   }
 
   // Story 1.4 - Move to front handler
   async function handleMoveToFront(jobId: number) {
+    if (operationInProgress) return;
     try {
+      operationInProgress = true;
       await moveJobToFront(jobId);
+      toast.success('Job moved to front of queue');
       await loadJobs();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(message);
+    } finally {
+      operationInProgress = false;
     }
   }
 
   // Story 1.4 - Move to end handler
   async function handleMoveToEnd(jobId: number) {
+    if (operationInProgress) return;
     try {
+      operationInProgress = true;
       await moveJobToEnd(jobId);
+      toast.success('Job moved to end of queue');
       await loadJobs();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(message);
+    } finally {
+      operationInProgress = false;
     }
   }
 
@@ -168,9 +183,10 @@
 
   async function handleDrop(event: DragEvent, targetPosition: number) {
     event.preventDefault();
-    if (draggedJobId === null) return;
+    if (draggedJobId === null || operationInProgress) return;
 
     try {
+      operationInProgress = true;
       await reorderQueueJob(draggedJobId, targetPosition);
       await loadJobs();
     } catch (error) {
@@ -179,6 +195,7 @@
     } finally {
       draggedJobId = null;
       dropTargetPosition = null;
+      operationInProgress = false;
     }
   }
 
@@ -198,7 +215,7 @@
   <div class="p-4 border-b border-slate-700/50 flex justify-between items-center">
     <div>
       <h2 class="text-lg font-semibold text-slate-200">Queue</h2>
-      <p class="text-xs text-slate-400">{jobs.length} jobs</p>
+      <p class="text-sm text-slate-400">{jobs.length} jobs</p>
     </div>
     {#if jobsByStatus.pending.length > 0}
       <button
@@ -226,7 +243,7 @@
       <!-- Running jobs section (Task 5.2) -->
       {#if jobsByStatus.running.length > 0}
         <div class="p-2">
-          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
+          <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
             Running ({jobsByStatus.running.length})
           </h3>
           {#each jobsByStatus.running as job (job.id)}
@@ -245,7 +262,7 @@
       <!-- Pending jobs section (Task 5.3) with drag-drop (Story 1.4) -->
       {#if jobsByStatus.pending.length > 0}
         <div class="p-2">
-          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
+          <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
             Pending ({jobsByStatus.pending.length})
           </h3>
           {#each jobsByStatus.pending as job, idx (job.id)}
@@ -346,7 +363,7 @@
       <!-- Completed/Failed jobs section (Task 5.4) -->
       {#if jobsByStatus.completed.length > 0}
         <div class="p-2">
-          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
+          <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
             Completed ({jobsByStatus.completed.length})
           </h3>
           {#each jobsByStatus.completed as job (job.id)}

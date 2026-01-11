@@ -1,6 +1,6 @@
 # Story 1.4: Queue Job Management - Remove & Reorder
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -1076,6 +1076,19 @@ N/A - Implementation proceeded without major blockers
 7. test_cancel_all_pending_preserves_running
 8. test_status_validation_on_modify
 
+**Code Review Fixes (2026-01-11):**
+
+- ✅ Added position validation to reorder_queue_job (bounds checking 1 <= pos <= max)
+- ✅ Removed #[allow] attribute, using safe u32::try_from conversion
+- ✅ Added 4 edge case tests (position 0, negative, beyond max, NULL queue_position)
+- ✅ Fixed accessibility: Changed text-xs to text-sm (14px minimum)
+- ✅ Added success toasts for move operations (UX feedback)
+- ✅ Updated error messages to match AC spec: "Cannot modify jobs that are running or completed"
+- ✅ Added operationInProgress flag to prevent race conditions
+- ✅ All 14 tests passing (10 original + 4 new)
+- ✅ Clippy passes with zero warnings
+- ✅ Frontend quality checks pass
+
 **Deferred to Future Stories:**
 
 - Duplicate detection warnings (Story 1.5)
@@ -1103,8 +1116,9 @@ N/A - Implementation proceeded without major blockers
 
 ## Change Log
 
-| Date       | Change                                                | Author          |
-| ---------- | ----------------------------------------------------- | --------------- |
-| 2026-01-11 | Implemented all 9 tasks for Story 1.4                 | Claude Opus 4.5 |
-| 2026-01-11 | Added 5 backend queue management functions with tests | Claude Opus 4.5 |
-| 2026-01-11 | Added frontend action buttons, drag-drop, modal       | Claude Opus 4.5 |
+| Date       | Change                                                                                                                | Author            |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 2026-01-11 | Implemented all 9 tasks for Story 1.4                                                                                 | Claude Opus 4.5   |
+| 2026-01-11 | Added 5 backend queue management functions with tests                                                                 | Claude Opus 4.5   |
+| 2026-01-11 | Added frontend action buttons, drag-drop, modal                                                                       | Claude Opus 4.5   |
+| 2026-01-11 | **Code review fixes:** Position validation, edge case tests, accessibility, error messages, race condition protection | Claude Sonnet 4.5 |

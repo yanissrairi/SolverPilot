@@ -702,9 +702,7 @@ pub async fn remove_job_from_queue(pool: &SqlitePool, job_id: i64) -> Result<(),
 
     let status: String = job.get("status");
     if status != "pending" {
-        return Err(format!(
-            "Cannot remove job with status '{status}'. Only pending jobs can be removed."
-        ));
+        return Err("Cannot modify jobs that are running or completed".to_string());
     }
 
     let position: i64 = job.get("queue_position");
@@ -749,9 +747,7 @@ pub async fn move_job_to_front(pool: &SqlitePool, job_id: i64) -> Result<(), Str
 
     let status: String = job.get("status");
     if status != "pending" {
-        return Err(format!(
-            "Cannot move job with status '{status}'. Only pending jobs can be reordered."
-        ));
+        return Err("Cannot modify jobs that are running or completed".to_string());
     }
 
     let current_position: i64 = job.get("queue_position");
@@ -799,9 +795,7 @@ pub async fn move_job_to_end(pool: &SqlitePool, job_id: i64) -> Result<(), Strin
 
     let status: String = job.get("status");
     if status != "pending" {
-        return Err(format!(
-            "Cannot move job with status '{status}'. Only pending jobs can be reordered."
-        ));
+        return Err("Cannot modify jobs that are running or completed".to_string());
     }
 
     let current_position: i64 = job.get("queue_position");
@@ -864,13 +858,33 @@ pub async fn reorder_queue_job(
 
     let status: String = job.get("status");
     if status != "pending" {
-        return Err(format!(
-            "Cannot reorder job with status '{status}'. Only pending jobs can be reordered."
-        ));
+        return Err("Cannot modify jobs that are running or completed".to_string());
     }
 
     let current_position: i64 = job.get("queue_position");
     let new_pos = i64::from(new_position);
+
+    // Validate new position bounds
+    if new_pos < 1 {
+        return Err(format!(
+            "Invalid position {new_pos}. Position must be >= 1."
+        ));
+    }
+
+    // Get max position among pending jobs to validate upper bound
+    let max_row = sqlx::query(
+        "SELECT COALESCE(MAX(queue_position), 0) as max_pos FROM jobs WHERE status = 'pending'",
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| format!("Failed to get max position: {e}"))?;
+
+    let max_position: i64 = max_row.get("max_pos");
+    if new_pos > max_position {
+        return Err(format!(
+            "Invalid position {new_pos}. Maximum position is {max_position}."
+        ));
+    }
 
     if current_position == new_pos {
         return Ok(()); // No change needed
@@ -921,9 +935,8 @@ pub async fn cancel_all_pending_jobs(pool: &SqlitePool) -> Result<u32, String> {
             .await
             .map_err(|e| format!("Failed to cancel pending jobs: {e}"))?;
 
-    // Safe: rows_affected is always non-negative
-    #[allow(clippy::cast_possible_truncation)]
-    Ok(result.rows_affected() as u32)
+    // Safe conversion: rows_affected returns u64, convert to u32
+    u32::try_from(result.rows_affected()).map_err(|_| "Row count exceeds u32::MAX".to_string())
 }
 
 // =============================================================================
@@ -1109,7 +1122,10 @@ mod tests {
 
         let result = remove_job_from_queue(&pool, job_id).await;
         assert!(result.is_err());
-        assert!(result.err().unwrap_or_default().contains("running"));
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("Cannot modify jobs that are running or completed"));
 
         Ok(())
     }
@@ -1241,6 +1257,81 @@ mod tests {
         assert!(move_job_to_front(&pool, job_id).await.is_err());
         assert!(move_job_to_end(&pool, job_id).await.is_err());
         assert!(reorder_queue_job(&pool, job_id, 2).await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reorder_job_position_zero_fails() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        let job_id = insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+
+        // Reorder to position 0 should fail
+        let result = reorder_queue_job(&pool, job_id, 0).await;
+        assert!(result.is_err());
+        assert!(result.err().unwrap_or_default().contains("must be >= 1"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reorder_job_negative_position_fails() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        let job_id = insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+
+        // Reorder to negative position should fail
+        let result = reorder_queue_job(&pool, job_id, -5).await;
+        assert!(result.is_err());
+        assert!(result.err().unwrap_or_default().contains("must be >= 1"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reorder_job_beyond_max_fails() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        insert_job_with_queue(&pool, 1, "job1.py", 1, "2026-01-11T10:00:00Z").await?;
+        let job2_id = insert_job_with_queue(&pool, 1, "job2.py", 2, "2026-01-11T10:01:00Z").await?;
+
+        // Reorder to position 999 should fail (max is 2)
+        let result = reorder_queue_job(&pool, job2_id, 999).await;
+        assert!(result.is_err());
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("Maximum position"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_job_null_queue_position_fails() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Create a job without queue_position (NULL)
+        let timestamp = Utc::now().to_rfc3339();
+        let result = sqlx::query(
+            "INSERT INTO jobs (project_id, benchmark_name, status, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind(1)
+        .bind("job1.py")
+        .bind("pending")
+        .bind(&timestamp)
+        .execute(&pool)
+        .await?;
+
+        let job_id = result.last_insert_rowid();
+
+        // Remove should fail (job not in queue)
+        let result = remove_job_from_queue(&pool, job_id).await;
+        assert!(result.is_err());
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("not found in queue"));
 
         Ok(())
     }
