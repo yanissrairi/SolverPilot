@@ -45,7 +45,7 @@ development_status:
   1-2-queue-storage-in-sqlite-database: done
   1-3-queue-panel-ui-view-queued-jobs: done
   1-4-queue-job-management-remove-reorder: done
-  1-5-duplicate-detection-queue-filtering: backlog
+  1-5-duplicate-detection-queue-filtering: review
   epic-1-retrospective: optional
 
   epic-2: backlog

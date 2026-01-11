@@ -365,6 +365,52 @@ pub async fn get_benchmark_by_id(pool: &SqlitePool, id: i64) -> Result<Benchmark
     })
 }
 
+// =============================================================================
+// Duplicate Detection (Story 1.5)
+// =============================================================================
+
+/// Result of duplicate job check
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateCheckResult {
+    pub is_duplicate: bool,
+    pub existing_count: i32,
+    pub existing_statuses: Vec<String>,
+}
+
+/// Checks if benchmark is already queued (pending or running only)
+/// Completed/failed jobs do NOT trigger duplicate warnings
+pub async fn check_duplicate_job(
+    pool: &SqlitePool,
+    benchmark_name: &str,
+) -> Result<DuplicateCheckResult, String> {
+    // Query only pending and running jobs (not completed/failed)
+    let row = sqlx::query(
+        "SELECT COUNT(*) as count, GROUP_CONCAT(status) as statuses
+         FROM jobs
+         WHERE benchmark_name = ?
+         AND status IN ('pending', 'running')
+         AND queue_position IS NOT NULL",
+    )
+    .bind(benchmark_name)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| format!("Failed to check duplicates: {e}"))?;
+
+    let count: i32 = row.get("count");
+    let statuses_str: Option<String> = row.get("statuses");
+
+    let existing_statuses = statuses_str
+        .map(|s| s.split(',').map(String::from).collect())
+        .unwrap_or_default();
+
+    Ok(DuplicateCheckResult {
+        is_duplicate: count > 0,
+        existing_count: count,
+        existing_statuses,
+    })
+}
+
 /// Gets all queued jobs ordered by status priority (running → pending → completed/failed), then by `queue_position`
 pub async fn get_queued_jobs(pool: &SqlitePool) -> Result<Vec<Job>, String> {
     let rows = sqlx::query(
@@ -1332,6 +1378,145 @@ mod tests {
             .err()
             .unwrap_or_default()
             .contains("not found in queue"));
+
+        Ok(())
+    }
+
+    // =============================================================================
+    // Story 1.5 - Duplicate Detection Tests
+    // =============================================================================
+
+    #[tokio::test]
+    async fn test_check_duplicate_pending_job() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert pending job
+        insert_job_with_queue(&pool, 1, "benchmark_01.py", 1, "2026-01-11T10:00:00Z").await?;
+
+        // Check for duplicate
+        let result = check_duplicate_job(&pool, "benchmark_01.py").await?;
+
+        assert!(result.is_duplicate);
+        assert_eq!(result.existing_count, 1);
+        assert_eq!(result.existing_statuses, vec!["pending"]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_check_duplicate_running_job() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert pending job then update to running
+        let job_id =
+            insert_job_with_queue(&pool, 1, "benchmark_02.py", 1, "2026-01-11T10:00:00Z").await?;
+        update_job_status(&pool, job_id, &JobStatus::Running).await?;
+
+        // Check for duplicate
+        let result = check_duplicate_job(&pool, "benchmark_02.py").await?;
+
+        assert!(result.is_duplicate);
+        assert_eq!(result.existing_count, 1);
+        assert_eq!(result.existing_statuses, vec!["running"]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_check_duplicate_completed_job_no_warning(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert pending job then complete it
+        let job_id =
+            insert_job_with_queue(&pool, 1, "benchmark_03.py", 1, "2026-01-11T10:00:00Z").await?;
+        update_job_status(&pool, job_id, &JobStatus::Completed).await?;
+
+        // Check for duplicate - should NOT be duplicate (completed jobs don't trigger warning)
+        let result = check_duplicate_job(&pool, "benchmark_03.py").await?;
+
+        assert!(!result.is_duplicate);
+        assert_eq!(result.existing_count, 0);
+        assert_eq!(result.existing_statuses.len(), 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_check_duplicate_failed_job_no_warning() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let pool = init_test_db().await?;
+
+        // Insert pending job then fail it
+        let job_id =
+            insert_job_with_queue(&pool, 1, "benchmark_04.py", 1, "2026-01-11T10:00:00Z").await?;
+        update_job_status(&pool, job_id, &JobStatus::Failed).await?;
+
+        // Check for duplicate - should NOT be duplicate (failed jobs don't trigger warning)
+        let result = check_duplicate_job(&pool, "benchmark_04.py").await?;
+
+        assert!(!result.is_duplicate);
+        assert_eq!(result.existing_count, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_check_duplicate_multiple_pending() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert 2 pending jobs with same name
+        insert_job_with_queue(&pool, 1, "benchmark_05.py", 1, "2026-01-11T10:00:00Z").await?;
+        insert_job_with_queue(&pool, 1, "benchmark_05.py", 2, "2026-01-11T10:01:00Z").await?;
+
+        // Check for duplicate
+        let result = check_duplicate_job(&pool, "benchmark_05.py").await?;
+
+        assert!(result.is_duplicate);
+        assert_eq!(result.existing_count, 2);
+        assert_eq!(result.existing_statuses, vec!["pending", "pending"]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_check_duplicate_mixed_statuses() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert jobs with different statuses
+        let job1_id =
+            insert_job_with_queue(&pool, 1, "benchmark_06.py", 1, "2026-01-11T10:00:00Z").await?;
+        let _job2_id =
+            insert_job_with_queue(&pool, 1, "benchmark_06.py", 2, "2026-01-11T10:01:00Z").await?;
+
+        // Update one to running
+        update_job_status(&pool, job1_id, &JobStatus::Running).await?;
+
+        // Check for duplicate - should find both pending and running
+        let result = check_duplicate_job(&pool, "benchmark_06.py").await?;
+
+        assert!(result.is_duplicate);
+        assert_eq!(result.existing_count, 2);
+        // Note: GROUP_CONCAT order is not guaranteed but both should be present
+        assert!(result.existing_statuses.contains(&"running".to_string()));
+        assert!(result.existing_statuses.contains(&"pending".to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_check_duplicate_no_match() -> Result<(), Box<dyn std::error::Error>> {
+        let pool = init_test_db().await?;
+
+        // Insert a different benchmark
+        insert_job_with_queue(&pool, 1, "benchmark_99.py", 1, "2026-01-11T10:00:00Z").await?;
+
+        // Check for non-existent benchmark
+        let result = check_duplicate_job(&pool, "benchmark_nonexistent.py").await?;
+
+        assert!(!result.is_duplicate);
+        assert_eq!(result.existing_count, 0);
+        assert_eq!(result.existing_statuses.len(), 0);
 
         Ok(())
     }

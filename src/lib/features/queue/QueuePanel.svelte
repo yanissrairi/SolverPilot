@@ -8,7 +8,7 @@
     reorderQueueJob,
     cancelAllPendingJobs,
   } from '$lib/api';
-  import type { Job } from '$lib/types';
+  import type { Job, QueueFilter } from '$lib/types';
   import StatusBadge from '$lib/ui/StatusBadge.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { toast } from '$lib/stores/toast.svelte';
@@ -20,11 +20,34 @@
   let dropTargetPosition = $state<number | null>(null);
   let operationInProgress = $state(false);
 
+  // Story 1.5 - Queue filtering
+  let activeFilter = $state<QueueFilter>('all');
+  let showFilterDropdown = $state(false);
+
+  // Story 1.5 - Filtered jobs based on activeFilter
+  let filteredJobs = $derived(() => {
+    if (activeFilter === 'all') {
+      return jobs;
+    }
+    return jobs.filter(job => job.status === activeFilter);
+  });
+
+  // Story 1.5 - Filter label for header
+  let filterLabel = $derived(() => {
+    if (activeFilter === 'all') {
+      return `${jobs.length.toString()} jobs`;
+    }
+    const count = filteredJobs().length;
+    return `${count.toString()} ${activeFilter}`;
+  });
+
   // Group jobs by status for visual hierarchy (Task 5)
+  // Uses filteredJobs instead of jobs for filtering support
   let jobsByStatus = $derived.by((): { running: Job[]; pending: Job[]; completed: Job[] } => {
-    const running: Job[] = jobs.filter(j => j.status === 'running');
-    const pending: Job[] = jobs.filter(j => j.status === 'pending');
-    const completed: Job[] = jobs.filter(
+    const filtered = filteredJobs();
+    const running: Job[] = filtered.filter(j => j.status === 'running');
+    const pending: Job[] = filtered.filter(j => j.status === 'pending');
+    const completed: Job[] = filtered.filter(
       j => j.status === 'completed' || j.status === 'failed' || j.status === 'killed',
     );
     return { running, pending, completed };
@@ -39,7 +62,29 @@
     }
   }
 
+  // Story 1.5 - Set filter and persist to localStorage
+  function setFilter(filter: QueueFilter) {
+    activeFilter = filter;
+    showFilterDropdown = false;
+    localStorage.setItem('queue_filter', filter);
+  }
+
+  // Story 1.5 - Filter options
+  const filterOptions: { value: QueueFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'running', label: 'Running' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'failed', label: 'Failed' },
+  ];
+
   onMount(() => {
+    // Story 1.5 - Load filter preference from localStorage
+    const savedFilter = localStorage.getItem('queue_filter');
+    if (savedFilter !== null) {
+      activeFilter = savedFilter as QueueFilter;
+    }
+
     void loadJobs();
     // TODO Epic 4: Add polling every 2 seconds
     // const interval = setInterval(() => void loadJobs(), 2000);
@@ -211,12 +256,57 @@
 <div
   class="h-full flex flex-col bg-slate-900/75 backdrop-blur-sm rounded-xl border border-slate-700/50 shadow-2xl"
 >
-  <!-- Header with Cancel All button (Story 1.4) -->
+  <!-- Header with Filter Dropdown and Cancel All button (Story 1.4 + 1.5) -->
   <div class="p-4 border-b border-slate-700/50 flex justify-between items-center">
-    <div>
+    <div class="flex items-center gap-3">
       <h2 class="text-lg font-semibold text-slate-200">Queue</h2>
-      <p class="text-sm text-slate-400">{jobs.length} jobs</p>
+
+      <!-- Filter Dropdown (Story 1.5) -->
+      <div class="relative">
+        <button
+          class="text-sm px-3 py-1 rounded border border-slate-600 bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+          onclick={() => {
+            showFilterDropdown = !showFilterDropdown;
+          }}
+          aria-label="Filter queue by status"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
+          </svg>
+          <span>{filterLabel()}</span>
+        </button>
+
+        {#if showFilterDropdown}
+          <div
+            class="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 py-1 min-w-[140px]"
+            onclick={e => e.stopPropagation()}
+            role="menu"
+          >
+            {#each filterOptions as option (option.value)}
+              <button
+                class="w-full px-4 py-2 text-sm text-left hover:bg-slate-700/50 transition-colors {activeFilter ===
+                option.value
+                  ? 'bg-slate-700/30 text-blue-400'
+                  : 'text-slate-300'}"
+                onclick={() => setFilter(option.value)}
+                role="menuitem"
+              >
+                {option.label}
+                {#if activeFilter === option.value}
+                  <span class="float-right">✓</span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
     </div>
+
     {#if jobsByStatus.pending.length > 0}
       <button
         class="text-sm text-red-400 hover:text-red-300 px-3 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
@@ -397,3 +487,14 @@
     showCancelAllModal = false;
   }}
 />
+
+<!-- Close dropdown when clicking outside (Story 1.5) -->
+{#if showFilterDropdown}
+  <button
+    class="fixed inset-0 z-0"
+    onclick={() => {
+      showFilterDropdown = false;
+    }}
+    aria-label="Close filter dropdown"
+  ></button>
+{/if}

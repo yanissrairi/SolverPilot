@@ -245,9 +245,15 @@ export async function queueJobs(benchmarkNames: string[]): Promise<Job[]> {
 
 /**
  * Queue benchmarks by their IDs with queue position tracking (Story 1.2)
+ * Enhanced with duplicate detection in Story 1.5
+ * @param benchmarkIds - Array of benchmark IDs to queue
+ * @param forceDuplicate - If true, bypass duplicate detection (default: false)
  */
-export async function queueBenchmarks(benchmarkIds: number[]): Promise<Job[]> {
-  return invoke('queue_benchmarks', { benchmarkIds });
+export async function queueBenchmarks(
+  benchmarkIds: number[],
+  forceDuplicate = false,
+): Promise<Job[]> {
+  return invoke('queue_benchmarks', { benchmarkIds, forceDuplicate });
 }
 
 /**

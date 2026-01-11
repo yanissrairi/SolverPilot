@@ -718,12 +718,16 @@ pub async fn queue_jobs(
 }
 
 /// Queue benchmarks by their IDs with queue position and timestamp (Story 1.2)
+/// Enhanced with duplicate detection in Story 1.5
 /// Uses a transaction to ensure atomicity (NFR-R7) - all jobs are queued or none are.
 #[tauri::command]
 pub async fn queue_benchmarks(
     state: State<'_, AppState>,
     benchmark_ids: Vec<i64>,
+    force_duplicate: Option<bool>,
 ) -> Result<Vec<Job>, String> {
+    // Default force_duplicate to false if not provided
+    let force_duplicate = force_duplicate.unwrap_or(false);
     let pool = state
         .db
         .lock()
@@ -732,11 +736,53 @@ pub async fn queue_benchmarks(
         .ok_or("Database not initialized")?
         .clone();
 
+    let config = state
+        .config
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Config not loaded")?
+        .clone();
+
     let project_id = state
         .current_project_id
         .lock()
         .await
         .ok_or("No active project - select a project first")?;
+
+    // Duplicate detection check (Story 1.5)
+    // Only check if force_duplicate is false
+    if !force_duplicate {
+        for bench_id in &benchmark_ids {
+            let benchmark = db::get_benchmark_by_id(&pool, *bench_id).await?;
+            let dup_check = db::check_duplicate_job(&pool, &benchmark.name).await?;
+
+            if dup_check.is_duplicate {
+                let duplicate_handling = &config.queue_settings.duplicate_handling;
+
+                match duplicate_handling.as_str() {
+                    "prevent" => {
+                        return Err(format!(
+                            "{} is already queued. Duplicates are not allowed.",
+                            benchmark.name
+                        ));
+                    }
+                    "allow" => {
+                        // Continue to queue without warning
+                    }
+                    // Default "warn" or unknown setting
+                    _ => {
+                        // Return special error that frontend handles with confirmation dialog
+                        return Err(format!(
+                            "DUPLICATE_WARNING:{}:{}",
+                            benchmark.name,
+                            dup_check.existing_statuses.join(",")
+                        ));
+                    }
+                }
+            }
+        }
+    }
 
     // Begin transaction for atomic batch insertion (NFR-R7)
     let mut tx = pool

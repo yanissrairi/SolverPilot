@@ -133,6 +133,7 @@
     });
 
     // Q key: Queue selected benchmarks (Subtask 3.2 - Story 1.2)
+    // Enhanced with duplicate detection (Story 1.5)
     registerShortcut({
       key: 'q',
       action: () => {
@@ -144,8 +145,8 @@
                 .map(name => benchmarks.find((b: Benchmark) => b.name === name)?.id)
                 .filter((id): id is number => id !== undefined);
 
-              // Queue benchmarks with position tracking (Story 1.2)
-              const queuedJobs = await queueBenchmarks(benchmarkIds);
+              // Queue benchmarks with duplicate detection (Story 1.5)
+              const queuedJobs = await queueBenchmarks(benchmarkIds, false);
 
               toast.success(
                 `${queuedJobs.length.toString()} benchmark${queuedJobs.length === 1 ? '' : 's'} added to queue`,
@@ -154,7 +155,52 @@
               // Clear selection after successful queue
               selectedBenchmarks.clear();
             } catch (error) {
-              toast.error(`Failed to queue benchmarks: ${String(error)}`);
+              const message = String(error);
+
+              // Check for duplicate warning format: "DUPLICATE_WARNING:benchmark_name:status1,status2"
+              if (message.startsWith('DUPLICATE_WARNING:')) {
+                const parts = message.split(':');
+                const benchmarkName = parts[1] || 'Benchmark';
+                const statuses = parts[2] || 'unknown';
+
+                // Show interactive toast with "Add Anyway" and "Cancel" options
+                toast.warning(
+                  `${benchmarkName} is already in the queue (${statuses}). Add anyway?`,
+                  undefined,
+                  [
+                    {
+                      label: 'Add Anyway',
+                      onClick: () => {
+                        void (async () => {
+                          try {
+                            // Recalculate benchmark IDs for the retry
+                            const idsToQueue = Array.from(selectedBenchmarks)
+                              .map(name => benchmarks.find((b: Benchmark) => b.name === name)?.id)
+                              .filter((id): id is number => id !== undefined);
+
+                            const queuedJobs = await queueBenchmarks(idsToQueue, true);
+                            toast.success(
+                              `${queuedJobs.length.toString()} benchmark${queuedJobs.length === 1 ? '' : 's'} added to queue (duplicates allowed)`,
+                            );
+                            selectedBenchmarks.clear();
+                          } catch (err) {
+                            toast.error(`Failed to queue benchmarks: ${String(err)}`);
+                          }
+                        })();
+                      },
+                    },
+                    {
+                      label: 'Cancel',
+                      onClick: () => {
+                        // Just dismiss the toast
+                      },
+                    },
+                  ],
+                );
+              } else {
+                // Other errors (including "prevent" mode)
+                toast.error(`Failed to queue benchmarks: ${message}`);
+              }
             }
           })();
         }

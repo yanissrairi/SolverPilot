@@ -1,21 +1,28 @@
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   type: ToastType;
   message: string;
   duration?: number;
+  actions?: ToastAction[];
 }
 
 class ToastStore {
   toasts = $state<Toast[]>([]);
 
-  add(type: ToastType, message: string, duration = 5000) {
+  add(type: ToastType, message: string, duration = 5000, actions?: ToastAction[]) {
     const id = crypto.randomUUID();
-    const toast: Toast = { id, type, message, duration };
+    const toast: Toast = { id, type, message, duration, actions };
     this.toasts.push(toast);
 
-    if (duration > 0) {
+    // Don't auto-dismiss if there are actions
+    if (duration > 0 && !actions) {
       setTimeout(() => {
         this.remove(id);
       }, duration);
@@ -38,8 +45,8 @@ class ToastStore {
     this.add('info', message, duration);
   }
 
-  warning(message: string, duration?: number) {
-    this.add('warning', message, duration);
+  warning(message: string, duration?: number, actions?: ToastAction[]) {
+    this.add('warning', message, duration, actions);
   }
 }
 

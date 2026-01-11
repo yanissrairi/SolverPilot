@@ -52,6 +52,25 @@
       </div>
       <div class="ml-3 w-0 flex-1 pt-0.5">
         <p class="text-sm font-medium">{item.message}</p>
+        {#if item.actions && item.actions.length > 0}
+          <div class="mt-3 flex gap-2">
+            {#each item.actions as action, idx (idx)}
+              <button
+                type="button"
+                class="text-sm font-medium px-3 py-1.5 rounded border transition-colors {item.type ===
+                'warning'
+                  ? 'border-amber-600/50 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                  : 'border-slate-600 bg-slate-700/50 text-slate-200 hover:bg-slate-700'}"
+                onclick={() => {
+                  action.onClick();
+                  toast.remove(item.id);
+                }}
+              >
+                {action.label}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
       <div class="ml-4 flex shrink-0">
         <button

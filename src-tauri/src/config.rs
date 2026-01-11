@@ -11,6 +11,8 @@ pub struct AppConfig {
     pub gurobi: GurobiConfig,
     #[serde(default)]
     pub tools: ToolsConfig,
+    #[serde(default)]
+    pub queue_settings: QueueSettings,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -60,6 +62,25 @@ pub struct ToolsConfig {
     /// Path to uv command
     #[serde(default = "default_uv_path")]
     pub uv_path: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct QueueSettings {
+    /// How to handle duplicate jobs: "warn" (default) | "prevent" | "allow"
+    #[serde(default = "default_duplicate_handling")]
+    pub duplicate_handling: String,
+}
+
+fn default_duplicate_handling() -> String {
+    "warn".to_string()
+}
+
+impl Default for QueueSettings {
+    fn default() -> Self {
+        Self {
+            duplicate_handling: default_duplicate_handling(),
+        }
+    }
 }
 
 fn default_uv_path() -> String {

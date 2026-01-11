@@ -83,6 +83,18 @@ export interface JobStatusResponse {
 }
 
 // =============================================================================
+// Story 1.5 - Duplicate Detection & Queue Filtering
+// =============================================================================
+
+export type QueueFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed';
+
+export interface DuplicateCheckResult {
+  isDuplicate: boolean;
+  existingCount: number;
+  existingStatuses: string[];
+}
+
+// =============================================================================
 // SSH & Sync
 // =============================================================================
 
