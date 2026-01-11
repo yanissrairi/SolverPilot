@@ -82,6 +82,9 @@ pub struct Job {
     pub results_path: Option<String>,
     pub error_message: Option<String>,
     pub log_content: String,
+    // Story 1.2 - Queue fields (nullable for non-queued jobs)
+    pub queue_position: Option<i64>,
+    pub queued_at: Option<String>,
 }
 
 /// Status de synchronisation du code

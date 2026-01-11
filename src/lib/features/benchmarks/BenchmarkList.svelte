@@ -3,6 +3,8 @@
   import type { SvelteSet } from 'svelte/reactivity';
   import type { Benchmark, Project } from '../../types';
   import { registerShortcut, unregisterShortcut } from '../../stores/shortcuts.svelte';
+  import { queueBenchmarks } from '../../api';
+  import { toast } from '../../stores/toast.svelte';
 
   let {
     benchmarks,
@@ -130,15 +132,31 @@
       description: 'Toggle selected benchmark',
     });
 
-    // Q key: Queue selected benchmarks (Subtask 3.2)
+    // Q key: Queue selected benchmarks (Subtask 3.2 - Story 1.2)
     registerShortcut({
       key: 'q',
       action: () => {
         if (selectedBenchmarks.size > 0) {
-          // TODO Story 1.2: Call queueBenchmarks API
-          console.log(
-            `Queue trigger: ${selectedBenchmarks.size.toString()} benchmarks ready for queue`,
-          );
+          void (async () => {
+            try {
+              // Get benchmark IDs from selected names
+              const benchmarkIds = Array.from(selectedBenchmarks)
+                .map(name => benchmarks.find((b: Benchmark) => b.name === name)?.id)
+                .filter((id): id is number => id !== undefined);
+
+              // Queue benchmarks with position tracking (Story 1.2)
+              const queuedJobs = await queueBenchmarks(benchmarkIds);
+
+              toast.success(
+                `${queuedJobs.length.toString()} benchmark${queuedJobs.length === 1 ? '' : 's'} added to queue`,
+              );
+
+              // Clear selection after successful queue
+              selectedBenchmarks.clear();
+            } catch (error) {
+              toast.error(`Failed to queue benchmarks: ${String(error)}`);
+            }
+          })();
         }
       },
       description: 'Queue selected benchmarks',

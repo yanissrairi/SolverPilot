@@ -65,6 +65,7 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::get_benchmark_dependencies,
             // Jobs
             commands::queue_jobs,
+            commands::queue_benchmarks, // Story 1.2 - Queue with position
             commands::start_next_job,
             commands::stop_job,
             commands::kill_job,

@@ -709,6 +709,64 @@ pub async fn queue_jobs(
             results_path: None,
             error_message: None,
             log_content: String::new(),
+            queue_position: None, // Alpha behavior - no queue
+            queued_at: None,
+        });
+    }
+
+    Ok(jobs)
+}
+
+/// Queue benchmarks by their IDs with queue position and timestamp (Story 1.2)
+#[tauri::command]
+pub async fn queue_benchmarks(
+    state: State<'_, AppState>,
+    benchmark_ids: Vec<i64>,
+) -> Result<Vec<Job>, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    let project_id = state
+        .current_project_id
+        .lock()
+        .await
+        .ok_or("No active project - select a project first")?;
+
+    // Get current max queue position
+    let max_pos = db::get_max_queue_position(&pool).await?;
+
+    let mut jobs = Vec::new();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    for (idx, bench_id) in benchmark_ids.iter().enumerate() {
+        let benchmark = db::get_benchmark_by_id(&pool, *bench_id).await?;
+
+        #[allow(clippy::cast_possible_wrap)]
+        let queue_pos = max_pos + (idx as i64) + 1;
+
+        let job_id =
+            db::insert_job_with_queue(&pool, project_id, &benchmark.name, queue_pos, &now).await?;
+
+        jobs.push(Job {
+            id: job_id,
+            project_id: Some(project_id),
+            benchmark_name: benchmark.name,
+            status: JobStatus::Pending,
+            created_at: now.clone(),
+            started_at: None,
+            finished_at: None,
+            progress_current: 0,
+            progress_total: 0,
+            results_path: None,
+            error_message: None,
+            log_content: String::new(),
+            queue_position: Some(queue_pos),
+            queued_at: Some(now.clone()),
         });
     }
 

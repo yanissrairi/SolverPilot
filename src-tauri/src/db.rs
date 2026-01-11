@@ -77,7 +77,36 @@ pub async fn init_db(db_path: &str) -> Result<SqlitePool, String> {
         .await
         .map_err(|e| format!("Erreur activation foreign keys: {e}"))?;
 
+    // Run queue columns migration (Story 1.2 - Beta 1)
+    migrate_queue_columns(&pool).await?;
+
     Ok(pool)
+}
+
+/// Migrates the jobs table to add queue-specific columns (Story 1.2)
+/// This migration is idempotent - safe to run multiple times
+pub async fn migrate_queue_columns(pool: &SqlitePool) -> Result<(), String> {
+    // Check if columns already exist (idempotent migration)
+    let has_queue_position = sqlx::query("SELECT queue_position FROM jobs LIMIT 1")
+        .fetch_optional(pool)
+        .await
+        .is_ok();
+
+    if !has_queue_position {
+        // Add queue_position column (nullable - NULL for non-queued jobs)
+        sqlx::query("ALTER TABLE jobs ADD COLUMN queue_position INTEGER")
+            .execute(pool)
+            .await
+            .map_err(|e| format!("Failed to add queue_position column: {e}"))?;
+
+        // Add queued_at column (nullable - NULL for non-queued jobs)
+        sqlx::query("ALTER TABLE jobs ADD COLUMN queued_at TEXT")
+            .execute(pool)
+            .await
+            .map_err(|e| format!("Failed to add queued_at column: {e}"))?;
+    }
+
+    Ok(())
 }
 
 // =============================================================================
@@ -269,6 +298,90 @@ pub async fn delete_benchmark(pool: &SqlitePool, id: i64) -> Result<(), String> 
         .map_err(|e| format!("Erreur suppression benchmark: {e}"))?;
 
     Ok(())
+}
+
+// =============================================================================
+// Queue Helper Functions (Story 1.2 - Beta 1)
+// =============================================================================
+
+/// Gets the maximum queue position currently assigned
+/// Returns 0 if no jobs are queued
+pub async fn get_max_queue_position(pool: &SqlitePool) -> Result<i64, String> {
+    let row = sqlx::query("SELECT COALESCE(MAX(queue_position), 0) as max_pos FROM jobs")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| format!("Failed to get max queue position: {e}"))?;
+
+    Ok(row.get("max_pos"))
+}
+
+/// Inserts a new job with queue position and `queued_at` timestamp
+pub async fn insert_job_with_queue(
+    pool: &SqlitePool,
+    project_id: i64,
+    benchmark_name: &str,
+    queue_position: i64,
+    queued_at: &str,
+) -> Result<i64, String> {
+    let now = Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        r"
+        INSERT INTO jobs (project_id, benchmark_name, status, created_at, queue_position, queued_at)
+        VALUES (?, ?, 'pending', ?, ?, ?)
+        ",
+    )
+    .bind(project_id)
+    .bind(benchmark_name)
+    .bind(&now)
+    .bind(queue_position)
+    .bind(queued_at)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("Failed to insert job with queue: {e}"))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Gets a benchmark by ID
+pub async fn get_benchmark_by_id(pool: &SqlitePool, id: i64) -> Result<Benchmark, String> {
+    let row = sqlx::query(
+        r"
+        SELECT id, project_id, name, path, created_at
+        FROM benchmarks WHERE id = ?
+        ",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| format!("Failed to get benchmark by ID: {e}"))?;
+
+    Ok(Benchmark {
+        id: row.get("id"),
+        project_id: row.get("project_id"),
+        name: row.get("name"),
+        path: row.get("path"),
+        created_at: row.get("created_at"),
+    })
+}
+
+/// Gets all queued jobs ordered by `queue_position`
+pub async fn get_queued_jobs(pool: &SqlitePool) -> Result<Vec<Job>, String> {
+    let rows = sqlx::query(
+        r"
+        SELECT id, project_id, benchmark_name, status, created_at, started_at, finished_at,
+               progress_current, progress_total, results_path, error_message, log_content,
+               queue_position, queued_at
+        FROM jobs
+        WHERE queue_position IS NOT NULL
+        ORDER BY queue_position ASC
+        ",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| format!("Failed to get queued jobs: {e}"))?;
+
+    Ok(rows_to_jobs_with_queue(rows))
 }
 
 // =============================================================================
@@ -496,6 +609,54 @@ fn rows_to_jobs(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
             results_path,
             error_message,
             log_content: log_content.unwrap_or_default(),
+            queue_position: None,
+            queued_at: None,
+        });
+    }
+
+    jobs
+}
+
+/// Converts database rows to Job structs, including queue fields (Story 1.2)
+fn rows_to_jobs_with_queue(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
+    let mut jobs = Vec::new();
+
+    for row in rows {
+        let id: i64 = row.get("id");
+        let project_id: Option<i64> = row.get("project_id");
+        let benchmark_name: String = row.get("benchmark_name");
+        let status_str: String = row.get("status");
+        let created_at: String = row.get("created_at");
+        let started_at: Option<String> = row.get("started_at");
+        let finished_at: Option<String> = row.get("finished_at");
+        let progress_current: i32 = row.get("progress_current");
+        let progress_total: i32 = row.get("progress_total");
+        let results_path: Option<String> = row.get("results_path");
+        let error_message: Option<String> = row.get("error_message");
+        let log_content: Option<String> = row.get("log_content");
+        let queue_position: Option<i64> = row.get("queue_position");
+        let queued_at: Option<String> = row.get("queued_at");
+
+        #[allow(clippy::cast_sign_loss)]
+        let progress_current_u32 = progress_current as u32;
+        #[allow(clippy::cast_sign_loss)]
+        let progress_total_u32 = progress_total as u32;
+
+        jobs.push(Job {
+            id,
+            project_id,
+            benchmark_name,
+            status: str_to_status(&status_str),
+            created_at,
+            started_at,
+            finished_at,
+            progress_current: progress_current_u32,
+            progress_total: progress_total_u32,
+            results_path,
+            error_message,
+            log_content: log_content.unwrap_or_default(),
+            queue_position,
+            queued_at,
         });
     }
 

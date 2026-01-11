@@ -243,6 +243,13 @@ export async function queueJobs(benchmarkNames: string[]): Promise<Job[]> {
   return invoke('queue_jobs', { benchmarkNames });
 }
 
+/**
+ * Queue benchmarks by their IDs with queue position tracking (Story 1.2)
+ */
+export async function queueBenchmarks(benchmarkIds: number[]): Promise<Job[]> {
+  return invoke('queue_benchmarks', { benchmarkIds });
+}
+
 export async function startNextJob(): Promise<Job | null> {
   return invoke('start_next_job');
 }

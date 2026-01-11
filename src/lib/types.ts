@@ -67,6 +67,9 @@ export interface Job {
   results_path: string | null;
   error_message: string | null;
   log_content: string;
+  // Story 1.2 - Queue fields (nullable for non-queued jobs)
+  queue_position: number | null;
+  queued_at: string | null;
 }
 
 export interface JobStatusResponse {
