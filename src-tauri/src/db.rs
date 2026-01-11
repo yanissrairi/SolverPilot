@@ -474,6 +474,8 @@ pub async fn update_job_progress(
     current: u32,
     total: u32,
 ) -> Result<(), String> {
+    // Safe: progress values are bounded by benchmark limits (typically <100k iterations)
+    // SQLite stores integers, and progress values will never exceed i32::MAX in practice
     #[allow(clippy::cast_possible_wrap)]
     let current_i32 = current as i32;
     #[allow(clippy::cast_possible_wrap)]
@@ -591,6 +593,8 @@ fn rows_to_jobs(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
         let error_message: Option<String> = row.get("error_message");
         let log_content: Option<String> = row.get("log_content");
 
+        // Safe: progress values are always non-negative (stored as positive counts in DB)
+        // These casts convert i32 (DB type) back to u32 (app type) for progress display
         #[allow(clippy::cast_sign_loss)]
         let progress_current_u32 = progress_current as u32;
         #[allow(clippy::cast_sign_loss)]
@@ -637,6 +641,8 @@ fn rows_to_jobs_with_queue(rows: Vec<sqlx::sqlite::SqliteRow>) -> Vec<Job> {
         let queue_position: Option<i64> = row.get("queue_position");
         let queued_at: Option<String> = row.get("queued_at");
 
+        // Safe: progress values are always non-negative (stored as positive counts in DB)
+        // These casts convert i32 (DB type) back to u32 (app type) for progress display
         #[allow(clippy::cast_sign_loss)]
         let progress_current_u32 = progress_current as u32;
         #[allow(clippy::cast_sign_loss)]

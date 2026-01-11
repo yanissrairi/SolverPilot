@@ -718,6 +718,7 @@ pub async fn queue_jobs(
 }
 
 /// Queue benchmarks by their IDs with queue position and timestamp (Story 1.2)
+/// Uses a transaction to ensure atomicity (NFR-R7) - all jobs are queued or none are.
 #[tauri::command]
 pub async fn queue_benchmarks(
     state: State<'_, AppState>,
@@ -737,8 +738,17 @@ pub async fn queue_benchmarks(
         .await
         .ok_or("No active project - select a project first")?;
 
-    // Get current max queue position
-    let max_pos = db::get_max_queue_position(&pool).await?;
+    // Begin transaction for atomic batch insertion (NFR-R7)
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| format!("Failed to begin transaction: {e}"))?;
+
+    // Get current max queue position (within transaction for consistency)
+    let max_pos: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(queue_position), 0) FROM jobs")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to get max queue position: {e}"))?;
 
     let mut jobs = Vec::new();
     let now = chrono::Utc::now().to_rfc3339();
@@ -746,11 +756,27 @@ pub async fn queue_benchmarks(
     for (idx, bench_id) in benchmark_ids.iter().enumerate() {
         let benchmark = db::get_benchmark_by_id(&pool, *bench_id).await?;
 
+        // Safe: benchmark queue size will never exceed i64::MAX in practice
+        // Typical queue sizes are <1000 jobs, well within i64 range
         #[allow(clippy::cast_possible_wrap)]
         let queue_pos = max_pos + (idx as i64) + 1;
 
-        let job_id =
-            db::insert_job_with_queue(&pool, project_id, &benchmark.name, queue_pos, &now).await?;
+        // Insert job within transaction
+        let job_id: i64 = sqlx::query_scalar(
+            r"
+            INSERT INTO jobs (project_id, benchmark_name, status, created_at, queue_position, queued_at)
+            VALUES (?, ?, 'pending', ?, ?, ?)
+            RETURNING id
+            ",
+        )
+        .bind(project_id)
+        .bind(&benchmark.name)
+        .bind(&now)
+        .bind(queue_pos)
+        .bind(&now)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to insert job: {e}"))?;
 
         jobs.push(Job {
             id: job_id,
@@ -769,6 +795,11 @@ pub async fn queue_benchmarks(
             queued_at: Some(now.clone()),
         });
     }
+
+    // Commit transaction - all jobs queued atomically
+    tx.commit()
+        .await
+        .map_err(|e| format!("Failed to commit transaction: {e}"))?;
 
     Ok(jobs)
 }
