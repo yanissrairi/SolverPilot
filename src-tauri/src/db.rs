@@ -365,7 +365,7 @@ pub async fn get_benchmark_by_id(pool: &SqlitePool, id: i64) -> Result<Benchmark
     })
 }
 
-/// Gets all queued jobs ordered by `queue_position`
+/// Gets all queued jobs ordered by status priority (running → pending → completed/failed), then by `queue_position`
 pub async fn get_queued_jobs(pool: &SqlitePool) -> Result<Vec<Job>, String> {
     let rows = sqlx::query(
         r"
@@ -374,7 +374,15 @@ pub async fn get_queued_jobs(pool: &SqlitePool) -> Result<Vec<Job>, String> {
                queue_position, queued_at
         FROM jobs
         WHERE queue_position IS NOT NULL
-        ORDER BY queue_position ASC
+        ORDER BY
+          CASE status
+            WHEN 'running' THEN 1
+            WHEN 'pending' THEN 2
+            WHEN 'completed' THEN 3
+            WHEN 'failed' THEN 4
+            WHEN 'killed' THEN 5
+          END,
+          queue_position ASC
         ",
     )
     .fetch_all(pool)

@@ -66,6 +66,7 @@ pub fn run() -> Result<(), tauri::Error> {
             // Jobs
             commands::queue_jobs,
             commands::queue_benchmarks, // Story 1.2 - Queue with position
+            commands::get_all_queue_jobs, // Story 1.3 - Get queued jobs
             commands::start_next_job,
             commands::stop_job,
             commands::kill_job,

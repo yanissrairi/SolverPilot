@@ -804,6 +804,21 @@ pub async fn queue_benchmarks(
     Ok(jobs)
 }
 
+/// Get all queued jobs ordered by status priority (Story 1.3)
+/// Returns jobs sorted: running → pending → completed/failed → killed
+#[tauri::command]
+pub async fn get_all_queue_jobs(state: State<'_, AppState>) -> Result<Vec<Job>, String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    db::get_queued_jobs(&pool).await
+}
+
 #[tauri::command]
 pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, String> {
     let config = state

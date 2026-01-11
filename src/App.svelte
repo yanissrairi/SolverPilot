@@ -35,8 +35,7 @@
   import DependencyPanel from './lib/features/dependencies/DependencyPanel.svelte';
   import MainLayout from './lib/layout/MainLayout.svelte';
   import BenchmarkList from './lib/features/benchmarks/BenchmarkList.svelte';
-  import JobMonitor from './lib/features/jobs/JobMonitor.svelte';
-  import HistoryPanel from './lib/features/history/HistoryPanel.svelte';
+  import QueuePanel from './lib/features/queue/QueuePanel.svelte';
   import SetupWizard from './lib/features/setup/SetupWizard.svelte';
   import ToastContainer from './lib/ui/ToastContainer.svelte';
   import { setupGlobalShortcuts, registerShortcut } from './lib/stores/shortcuts.svelte';
@@ -45,7 +44,6 @@
   let activeProject = $state<Project | null>(null);
   let benchmarks = $state<Benchmark[]>([]);
   const selectedBenchmarks = new SvelteSet<string>();
-  let history = $state<Job[]>([]);
 
   // Status
   let sshReady = $state(false);
@@ -64,12 +62,15 @@
   let needsSetup = $state(false);
   let checkingConfig = $state(true);
 
-  // Active Job
-  let currentJobStatus = $state<JobStatusResponse | null>(null);
-  let isRunning = $state(false);
+  // Active Job (kept for polling logic - Story 1.3 removes JobMonitor but keeps backend state)
+  // @ts-expect-error - Unused in Story 1.3 but needed for polling
+  let _currentJobStatus = $state<JobStatusResponse | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  let _isRunning = $state(false);
 
-  // History view
-  let selectedHistoryJob = $state<Job | null>(null);
+  // History view (kept for existing logic - Story 1.3 removes HistoryPanel but keeps state)
+  let _selectedHistoryJob = $state<Job | null>(null);
+  // @ts-expect-error - Unused in Story 1.3 but needed for lifecycle
+  let _history = $state<Job[]>([]); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Dependency analysis
   let focusedBenchmark = $state<Benchmark | null>(null);
@@ -302,7 +303,7 @@
   }
 
   async function refreshHistory() {
-    history = await loadHistory(5);
+    _history = await loadHistory(5);
   }
 
   // Selection Logic
@@ -337,13 +338,18 @@
     }
   }
 
-  async function handleStop() {
+  // Story 1.3: These are kept for future use when JobMonitor is re-integrated
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  // @ts-expect-error - Unused until JobMonitor is re-integrated
+  async function _handleStop() {
     await stopJob();
   }
 
-  async function handleKill() {
+  // @ts-expect-error - Unused until JobMonitor is re-integrated
+  async function _handleKill() {
     await killJob();
   }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   // Polling Logic
   function startPolling() {
@@ -351,17 +357,17 @@
     pollInterval = setInterval(async () => {
       try {
         const status = await getJobStatus();
-        currentJobStatus = status;
+        _currentJobStatus = status;
 
         if (status.job && (status.job.status === 'running' || status.job.status === 'pending')) {
-          isRunning = true;
-        } else if (status.is_finished && isRunning) {
-          isRunning = false;
+          _isRunning = true;
+        } else if (status.is_finished && _isRunning) {
+          _isRunning = false;
           void refreshHistory();
           const next = await startNextJob();
-          if (next) isRunning = true;
+          if (next) _isRunning = true;
         } else {
-          isRunning = false;
+          _isRunning = false;
         }
       } catch {
         // Poll error
@@ -420,8 +426,8 @@
           return;
         }
 
-        if (selectedHistoryJob) {
-          selectedHistoryJob = null;
+        if (_selectedHistoryJob) {
+          _selectedHistoryJob = null;
           return;
         }
 
@@ -558,7 +564,7 @@
         {selectedBenchmarks}
         {focusedBenchmark}
         {activeProject}
-        {isRunning}
+        isRunning={_isRunning}
         bind:benchmarkError
         onadd={addBenchmarkFile}
         onrefresh={refreshBenchmarks}
@@ -571,24 +577,7 @@
     {/snippet}
 
     {#snippet middlePanel()}
-      <div class="h-full flex flex-col min-h-0 glass-panel">
-        <JobMonitor
-          {currentJobStatus}
-          {isRunning}
-          {selectedHistoryJob}
-          bind:autoScroll
-          onstop={handleStop}
-          onkill={handleKill}
-          onbacktolist={() => (selectedHistoryJob = null)}
-        />
-        <div class="h-px bg-white/5 my-0"></div>
-        <HistoryPanel
-          {history}
-          {selectedHistoryJob}
-          onselect={(job: Job) => (selectedHistoryJob = job)}
-          onrefresh={refreshHistory}
-        />
-      </div>
+      <QueuePanel />
     {/snippet}
 
     {#snippet rightPanel()}

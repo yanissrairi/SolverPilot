@@ -1,0 +1,163 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { getAllQueueJobs } from '$lib/api';
+  import type { Job } from '$lib/types';
+  import StatusBadge from '$lib/ui/StatusBadge.svelte';
+  import { toast } from '$lib/stores/toast.svelte';
+
+  let jobs = $state<Job[]>([]);
+
+  // Group jobs by status for visual hierarchy (Task 5)
+  let jobsByStatus = $derived.by((): { running: Job[]; pending: Job[]; completed: Job[] } => {
+    const running: Job[] = jobs.filter(j => j.status === 'running');
+    const pending: Job[] = jobs.filter(j => j.status === 'pending');
+    const completed: Job[] = jobs.filter(
+      j => j.status === 'completed' || j.status === 'failed' || j.status === 'killed',
+    );
+    return { running, pending, completed };
+  });
+
+  async function loadJobs() {
+    try {
+      jobs = await getAllQueueJobs();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to load queue: ${message}`);
+    }
+  }
+
+  onMount(() => {
+    void loadJobs();
+    // TODO Epic 4: Add polling every 2 seconds
+    // const interval = setInterval(() => void loadJobs(), 2000);
+    // return () => clearInterval(interval);
+  });
+
+  // Timestamp formatting logic (Task 6)
+  function formatTimestamp(job: Job): string {
+    if (job.status === 'pending' && job.queued_at !== null) {
+      const queued = new Date(job.queued_at);
+      const ago = Math.floor((Date.now() - queued.getTime()) / 60000);
+      if (ago < 1) return 'Queued just now';
+      if (ago < 60) return `Queued ${String(ago)}m ago`;
+      const hours = Math.floor(ago / 60);
+      if (hours < 24) return `Queued ${String(hours)}h ago`;
+      const days = Math.floor(hours / 24);
+      return `Queued ${String(days)}d ago`;
+    }
+    if (job.status === 'running' && job.started_at !== null) {
+      // TODO Epic 4: Replace with live elapsed time counter
+      const started = new Date(job.started_at);
+      const elapsed = Math.floor((Date.now() - started.getTime()) / 60000);
+      if (elapsed < 1) return 'Running for <1m';
+      if (elapsed < 60) return `Running for ${String(elapsed)}m`;
+      const hours = Math.floor(elapsed / 60);
+      if (hours < 24) return `Running for ${String(hours)}h`;
+      const days = Math.floor(hours / 24);
+      return `Running for ${String(days)}d ${String(hours % 24)}h`;
+    }
+    if (
+      (job.status === 'completed' || job.status === 'failed' || job.status === 'killed') &&
+      job.finished_at !== null
+    ) {
+      const finished = new Date(job.finished_at);
+      const ago = Math.floor((Date.now() - finished.getTime()) / 60000);
+      if (ago < 1) return 'Finished just now';
+      if (ago < 60) return `Finished ${String(ago)}m ago`;
+      const hours = Math.floor(ago / 60);
+      if (hours < 24) return `Finished ${String(hours)}h ago`;
+      const days = Math.floor(hours / 24);
+      return `Finished ${String(days)}d ago`;
+    }
+    return '';
+  }
+</script>
+
+<!-- Glassmorphism panel with backdrop-blur-sm (Task 1.5) -->
+<div
+  class="h-full flex flex-col bg-slate-900/75 backdrop-blur-sm rounded-xl border border-slate-700/50 shadow-2xl"
+>
+  <div class="p-4 border-b border-slate-700/50">
+    <h2 class="text-lg font-semibold text-slate-200">Queue</h2>
+    <p class="text-xs text-slate-400">{jobs.length} jobs</p>
+  </div>
+
+  <!-- Scrolling container with overflow-y-auto (Task 8.1) -->
+  <div class="flex-1 overflow-y-auto">
+    {#if jobs.length === 0}
+      <!-- Empty state (Task 1.4) -->
+      <div class="flex items-center justify-center h-full text-center p-8">
+        <p class="text-slate-400">
+          No jobs in queue. Select benchmarks and press Q to get started.
+        </p>
+      </div>
+    {:else}
+      <!-- Running jobs section (Task 5.2) -->
+      {#if jobsByStatus.running.length > 0}
+        <div class="p-2">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
+            Running ({jobsByStatus.running.length})
+          </h3>
+          {#each jobsByStatus.running as job (job.id)}
+            <!-- Job item with py-2 spacing and hover effect (Task 8.2, 8.5) -->
+            <div class="px-3 py-2 hover:bg-slate-700/50 rounded-lg transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-slate-100">{job.benchmark_name}</span>
+                <StatusBadge status={job.status} />
+              </div>
+              <p class="text-xs text-slate-500 mt-1">{formatTimestamp(job)}</p>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Pending jobs section (Task 5.3) -->
+      {#if jobsByStatus.pending.length > 0}
+        <div class="p-2">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
+            Pending ({jobsByStatus.pending.length})
+          </h3>
+          {#each jobsByStatus.pending as job, idx (job.id)}
+            <!-- Alternating backgrounds with even:bg-slate-800/30 (Task 8.3) -->
+            <div
+              class="px-3 py-2 hover:bg-slate-700/50 rounded-lg transition-colors {idx % 2 === 0
+                ? 'bg-slate-800/30'
+                : ''}"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <!-- Queue position number (Task 5.3) -->
+                  {#if job.queue_position !== null}
+                    <span class="text-xs text-slate-400">#{String(job.queue_position)}</span>
+                  {/if}
+                  <span class="text-slate-200">{job.benchmark_name}</span>
+                </div>
+                <StatusBadge status={job.status} />
+              </div>
+              <p class="text-xs text-slate-500 mt-1">{formatTimestamp(job)}</p>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Completed/Failed jobs section (Task 5.4) -->
+      {#if jobsByStatus.completed.length > 0}
+        <div class="p-2">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-3 py-2">
+            Completed ({jobsByStatus.completed.length})
+          </h3>
+          {#each jobsByStatus.completed as job (job.id)}
+            <div class="px-3 py-2 hover:bg-slate-700/50 rounded-lg transition-colors">
+              <div class="flex items-center justify-between">
+                <!-- Muted text for completed jobs (Task 5.4) -->
+                <span class="text-slate-400">{job.benchmark_name}</span>
+                <StatusBadge status={job.status} />
+              </div>
+              <p class="text-xs text-slate-500 mt-1">{formatTimestamp(job)}</p>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+  </div>
+</div>

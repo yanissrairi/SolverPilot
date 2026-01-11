@@ -250,6 +250,14 @@ export async function queueBenchmarks(benchmarkIds: number[]): Promise<Job[]> {
   return invoke('queue_benchmarks', { benchmarkIds });
 }
 
+/**
+ * Get all queued jobs ordered by status priority (Story 1.3)
+ * Returns jobs sorted: running → pending → completed/failed → killed
+ */
+export async function getAllQueueJobs(): Promise<Job[]> {
+  return invoke('get_all_queue_jobs');
+}
+
 export async function startNextJob(): Promise<Job | null> {
   return invoke('start_next_job');
 }
