@@ -1,0 +1,87 @@
+# generated: 2026-01-11
+# project: SolverPilot
+# project_key: solverpilot-beta-1
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-01-11
+project: SolverPilot
+project_key: solverpilot-beta-1
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-multi-select-benchmarks-in-left-panel: done
+  1-2-queue-storage-in-sqlite-database: backlog
+  1-3-queue-panel-ui-view-queued-jobs: backlog
+  1-4-queue-job-management-remove-reorder: backlog
+  1-5-duplicate-detection-queue-filtering: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-bash-wrapper-script-state-capture-foundation: backlog
+  2-2-server-side-sqlite-database-schema-initialization: backlog
+  2-3-wrapper-deployment-via-ssh: backlog
+  2-4-queue-execution-backend-sequential-job-processing: backlog
+  2-5-start-pause-resume-queue-controls-frontend-backend: backlog
+  2-6-job-state-reconciliation-triple-redundancy-validation: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-startup-reconciliation-engine-multi-job-state-query: backlog
+  3-2-orphaned-session-detection-conflict-resolution: backlog
+  3-3-startup-resume-screen-trust-foundation-ui: backlog
+  3-4-queue-locking-user-action-queuing-during-sync: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-backend-polling-2-second-queue-state-updates: backlog
+  4-2-always-visible-queue-status-summary-in-panel-header: backlog
+  4-3-real-time-progress-indicators-elapsed-time-x-y-parsing: backlog
+  4-4-live-log-streaming-for-selected-job: backlog
+  4-5-job-timeout-detection-long-running-warnings: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-queue-state-machine-failed-jobs-dont-block-execution: backlog
+  5-2-failure-indicators-error-message-extraction: backlog
+  5-3-one-click-retry-batch-retry-operations: backlog
+  5-4-auto-retry-with-exponential-backoff-quarantine: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-bb8-connection-pooling-10x-ssh-performance-improvement: backlog
+  6-2-health-checks-connection-status-tracking: backlog
+  6-3-auto-reconnect-with-exponential-backoff: backlog
+  6-4-dual-channel-connection-indicators-transparent-recovery-ui: backlog
+  epic-6-retrospective: optional
