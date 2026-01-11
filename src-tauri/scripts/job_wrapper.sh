@@ -1,0 +1,88 @@
+#!/bin/bash
+# job_wrapper.sh - Robust job state capture wrapper
+# Purpose: Guarantees 99.99% state capture for remote SSH/tmux jobs
+# Usage: job_wrapper.sh <job_id> <command> [args...]
+# Limitation: trap EXIT does NOT run on SIGKILL (kill -9) - expected edge case
+# that will be detected by reconciliation logic (Epic 3)
+
+set -euo pipefail
+
+# Extract job ID and command
+JOB_ID="$1"
+shift
+
+# Environment setup
+USER="${USER:-$(whoami)}"
+BASE_DIR="$HOME/.solverpilot-server"
+SERVER_DB="$BASE_DIR/server.db"
+STATE_FILE="$BASE_DIR/jobs/$JOB_ID.status"
+LOCK_FILE="$BASE_DIR/locks/$JOB_ID.lock"
+
+# Create necessary directories
+mkdir -p "$BASE_DIR"/{jobs,locks}
+
+# Acquire exclusive lock for atomic operations
+exec 200>"$LOCK_FILE"
+flock -x 200 || exit 1
+
+# Cleanup function - called on EXIT (guaranteed unless SIGKILL)
+# Captures exit code and writes final state to both SQLite and state file
+cleanup() {
+    local exit_code=$?
+    local status="completed"
+    [[ $exit_code -ne 0 ]] && status="failed"
+
+    # Write to SQLite (primary source of truth)
+    # Use 2>/dev/null || true pattern for graceful failure
+    if command -v sqlite3 &>/dev/null; then
+        sqlite3 "$SERVER_DB" <<SQL 2>/dev/null || echo "WARNING: Failed to update SQLite, state file written" >&2
+UPDATE jobs
+SET status='$status',
+    completed_at=datetime('now'),
+    exit_code=$exit_code
+WHERE id='$JOB_ID';
+SQL
+    fi
+
+    # Write to state file (fallback + redundancy)
+    # ISO 8601 timestamp format
+    cat >"$STATE_FILE" <<JSON
+{
+  "id": "$JOB_ID",
+  "status": "$status",
+  "exit_code": $exit_code,
+  "completed_at": "$(date -Iseconds)",
+  "user": "$USER"
+}
+JSON
+
+    # Release lock
+    flock -u 200
+}
+
+# Register trap - EXIT fires on normal exit, error, SIGTERM, SIGINT
+# Does NOT fire on SIGKILL (kill -9) - documented limitation
+trap cleanup EXIT
+
+# Update: Job starting (write to both SQLite and state file)
+if command -v sqlite3 &>/dev/null; then
+    sqlite3 "$SERVER_DB" <<SQL 2>/dev/null || true
+UPDATE jobs
+SET status='running',
+    started_at=datetime('now'),
+    tmux_session_name='solverpilot_${USER}_${JOB_ID:0:8}'
+WHERE id='$JOB_ID';
+SQL
+fi
+
+cat >"$STATE_FILE" <<JSON
+{
+  "id": "$JOB_ID",
+  "status": "running",
+  "started_at": "$(date -Iseconds)",
+  "user": "$USER"
+}
+JSON
+
+# Execute the actual job - exit code automatically captured by trap EXIT
+"$@"

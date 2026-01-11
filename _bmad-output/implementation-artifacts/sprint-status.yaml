@@ -48,8 +48,8 @@ development_status:
   1-5-duplicate-detection-queue-filtering: done
   epic-1-retrospective: done
 
-  epic-2: backlog
-  2-1-bash-wrapper-script-state-capture-foundation: backlog
+  epic-2: in-progress
+  2-1-bash-wrapper-script-state-capture-foundation: review
   2-2-server-side-sqlite-database-schema-initialization: backlog
   2-3-wrapper-deployment-via-ssh: backlog
   2-4-queue-execution-backend-sequential-job-processing: backlog
