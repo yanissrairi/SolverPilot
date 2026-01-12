@@ -261,9 +261,9 @@ pub async fn deploy_wrapper(state: State<'_, AppState>) -> Result<(), String> {
     // Initialize server database
     init_server_db(state).await?;
 
-    // Update wrapper version in metadata
+    // Update wrapper version in metadata (using heredoc to avoid SQL injection risks)
     let update_version_cmd = format!(
-        "sqlite3 ~/.solverpilot-server/server.db \"INSERT OR REPLACE INTO metadata (key, value) VALUES ('wrapper_version', '{}')\"",
+        "sqlite3 ~/.solverpilot-server/server.db <<'SQL_EOF'\nINSERT OR REPLACE INTO metadata (key, value) VALUES ('wrapper_version', '{}');\nSQL_EOF",
         crate::wrapper::WRAPPER_VERSION
     );
 
@@ -1076,6 +1076,53 @@ pub async fn start_next_job(state: State<'_, AppState>) -> Result<Option<Job>, S
     // Prendre le prochain job en attente
     let pending = db::load_pending_jobs(&pool).await?;
     if let Some(job) = pending.into_iter().next() {
+        // Story 2.3: Auto-deploy wrapper on first queue execution
+        // Check if wrapper is installed, deploy if not (idempotent)
+        let manager = get_ssh_manager!(state);
+        let wrapper_mgr = crate::wrapper::WrapperManager::new();
+
+        if !wrapper_mgr.check_installed(manager.executor()).await? {
+            tracing::info!("Wrapper not installed, deploying infrastructure...");
+            // Deploy wrapper script
+            wrapper_mgr.deploy_to_server(manager.executor()).await?;
+
+            // Initialize server database
+            let init_script = crate::server_db::generate_init_script();
+            manager
+                .executor()
+                .execute("mkdir -p ~/.solverpilot-server")
+                .await
+                .map_err(|e| format!("Failed to create server directory: {e}"))?;
+
+            let sql_cmd = format!(
+                "sqlite3 ~/.solverpilot-server/server.db <<'SQL_EOF'\n{init_script}\nSQL_EOF"
+            );
+            manager
+                .executor()
+                .execute(&sql_cmd)
+                .await
+                .map_err(|e| format!("Failed to initialize server database: {e}"))?;
+
+            manager
+                .executor()
+                .execute("chmod 600 ~/.solverpilot-server/server.db")
+                .await
+                .map_err(|e| format!("Failed to set database permissions: {e}"))?;
+
+            // Update wrapper version in metadata
+            let version_cmd = format!(
+                "sqlite3 ~/.solverpilot-server/server.db <<'SQL_EOF'\nINSERT OR REPLACE INTO metadata (key, value) VALUES ('wrapper_version', '{}');\nSQL_EOF",
+                crate::wrapper::WRAPPER_VERSION
+            );
+            manager
+                .executor()
+                .execute(&version_cmd)
+                .await
+                .map_err(|e| format!("Failed to update wrapper version: {e}"))?;
+
+            tracing::info!("Queue infrastructure deployed successfully");
+        }
+
         // Sync le projet avant de lancer (pyproject.toml, uv.lock)
         let project_dir = project::project_path(&proj.name)?;
         get_ssh_manager!(state)

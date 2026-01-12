@@ -1,6 +1,6 @@
 # Story 2.3: Wrapper Deployment via SSH
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -557,12 +557,20 @@ No critical debug issues encountered during implementation.
 
 ### File List
 
-- `src-tauri/src/wrapper.rs` (NEW - 225 lines)
+- `src-tauri/src/wrapper.rs` (NEW - 359 lines, includes 22 unit/integration tests)
 - `src-tauri/src/lib.rs` (MODIFIED - added mod wrapper; and registered commands)
-- `src-tauri/src/commands.rs` (MODIFIED - added check_wrapper_installed and deploy_wrapper commands)
-- `src/lib/api.ts` (MODIFIED - added checkWrapperInstalled() and deployWrapper() wrappers)
+- `src-tauri/src/commands.rs` (MODIFIED - added check_wrapper_installed, deploy_wrapper, auto-deploy in start_next_job)
+- `src/lib/api.ts` (MODIFIED - added checkWrapperInstalled(), deployWrapper() with toast documentation)
 - `src-tauri/src/server_db.rs` (MODIFIED - fixed clippy lint: replaced unwrap_err() with if-let pattern, vec! with array)
 
 ## Change Log
 
 - **2026-01-12:** Story 2.3 implementation complete - Wrapper deployment via SSH with idempotent logic, 8 unit tests passing, clippy clean
+- **2026-01-12:** Code review fixes applied (Claude Opus 4.5):
+  - **H1 FIXED:** Added auto-deploy wrapper check in `start_next_job()` - AC now fulfilled
+  - **H2 FIXED:** Added 14 integration tests (now 22 total) for deployment sequence, commands, and edge cases
+  - **M1 FIXED:** Replaced SQL string interpolation with heredoc pattern in `deploy_wrapper()`
+  - **M2 FIXED:** Added error rollback with cleanup on partial deployment failure
+  - **M3 FIXED:** Documented toast notification requirements in api.ts JSDoc
+  - **L1 FIXED:** Updated file list with accurate line counts (359 lines with tests)
+  - All 22 wrapper tests passing, clippy clean

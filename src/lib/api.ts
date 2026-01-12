@@ -105,6 +105,14 @@ export async function checkWrapperInstalled(): Promise<boolean> {
  * Deploy wrapper script to remote server at ~/.solverpilot/bin/job_wrapper.sh.
  * Automatically initializes server database if needed.
  * Idempotent: safe to call multiple times (skips if already installed).
+ *
+ * **Frontend Toast Requirements (Story 2.3 AC):**
+ * - On start: Show toast "Installing queue infrastructure on server..."
+ * - On success: Show toast "Queue infrastructure ready ✓"
+ * - On error: Show toast "Failed to install queue infrastructure. Check server permissions."
+ *
+ * Note: The backend auto-deploys wrapper on first queue execution via `startNextJob()`,
+ * so explicit calls to this function are typically for manual deployment scenarios.
  */
 export async function deployWrapper(): Promise<void> {
   return invoke('deploy_wrapper');
