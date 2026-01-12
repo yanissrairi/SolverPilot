@@ -185,6 +185,59 @@ pub async fn add_ssh_key(state: State<'_, AppState>, passphrase: String) -> Resu
 }
 
 // ============================================================================
+// Server Database
+// ============================================================================
+
+/// Initialize server-side database via SSH
+/// Generates SQL script and executes on remote server at ~/.solverpilot-server/server.db
+#[tauri::command]
+pub async fn init_server_db(state: State<'_, AppState>) -> Result<(), String> {
+    let _config = state
+        .config
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Config not loaded")?
+        .clone();
+
+    let manager = get_ssh_manager!(state);
+
+    // Generate SQL initialization script
+    let init_script = crate::server_db::generate_init_script();
+
+    // Create remote directory
+    let mkdir_cmd = "mkdir -p ~/.solverpilot-server";
+    manager
+        .executor()
+        .execute(mkdir_cmd)
+        .await
+        .map_err(|e| format!("Failed to create server directory: {e}"))?;
+
+    // Execute SQL script on remote server
+    // Using heredoc to avoid escaping issues
+    let sql_cmd =
+        format!("sqlite3 ~/.solverpilot-server/server.db <<'SQL_EOF'\n{init_script}\nSQL_EOF");
+
+    manager
+        .executor()
+        .execute(&sql_cmd)
+        .await
+        .map_err(|e| format!("Failed to initialize server database: {e}"))?;
+
+    // Set database permissions to 0600
+    let chmod_cmd = "chmod 600 ~/.solverpilot-server/server.db";
+    manager
+        .executor()
+        .execute(chmod_cmd)
+        .await
+        .map_err(|e| format!("Failed to set database permissions: {e}"))?;
+
+    tracing::info!("Server database initialized at ~/.solverpilot-server/server.db");
+
+    Ok(())
+}
+
+// ============================================================================
 // Sync
 // ============================================================================
 

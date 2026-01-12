@@ -5,6 +5,7 @@ pub mod job;
 pub mod paths;
 pub mod project;
 pub mod python_deps;
+pub mod server_db;
 pub mod ssh;
 pub mod state;
 
@@ -45,6 +46,8 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::test_ssh_direct,
             commands::check_ssh_key_status,
             commands::add_ssh_key,
+            // Server Database
+            commands::init_server_db,
             // Sync
             commands::check_sync_status,
             commands::sync_code,

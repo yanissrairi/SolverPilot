@@ -993,7 +993,7 @@ pub async fn cancel_all_pending_jobs(pool: &SqlitePool) -> Result<u32, String> {
 mod tests {
     use super::*;
 
-    /// Creates an in-memory SQLite database for testing
+    /// Creates an in-memory `SQLite` database for testing
     async fn init_test_db() -> Result<SqlitePool, Box<dyn std::error::Error>> {
         let pool = SqlitePool::connect("sqlite::memory:").await?;
 
