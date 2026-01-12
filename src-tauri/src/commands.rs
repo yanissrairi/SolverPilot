@@ -192,14 +192,6 @@ pub async fn add_ssh_key(state: State<'_, AppState>, passphrase: String) -> Resu
 /// Generates SQL script and executes on remote server at ~/.solverpilot-server/server.db
 #[tauri::command]
 pub async fn init_server_db(state: State<'_, AppState>) -> Result<(), String> {
-    let _config = state
-        .config
-        .lock()
-        .await
-        .as_ref()
-        .ok_or("Config not loaded")?
-        .clone();
-
     let manager = get_ssh_manager!(state);
 
     // Generate SQL initialization script

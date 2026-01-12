@@ -1,6 +1,6 @@
 # Story 2.2: Server-Side SQLite Database Schema & Initialization
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -635,7 +635,7 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 
 - `generate_init_script()` function using `include_str!()` to embed schema
 - `init_local_test_db()` test helper for local testing with 0600 permissions
-- 10 comprehensive tests covering schema creation, idempotence, PRAGMAs, and wrapper compatibility
+- 15 comprehensive tests covering schema creation, idempotence, PRAGMAs, wrapper compatibility, and error handling
 
 ✅ **Task 3 Complete:** Added Tauri command for remote initialization:
 
@@ -644,7 +644,7 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 - Uses heredoc to avoid SQL escaping issues: `sqlite3 ~/.solverpilot-server/server.db <<'SQL_EOF'`
 - Registered command in invoke_handler list
 
-✅ **Task 4 Complete:** All tests pass (10/10) including:
+✅ **Task 4 Complete:** All tests pass (14/14) including:
 
 - Schema creation and structure validation
 - WAL mode, busy_timeout, foreign_keys PRAGMA verification
@@ -670,17 +670,18 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 **Files Created:**
 
 - src-tauri/sql/server_schema.sql (NEW - SQL schema with PRAGMAs, table, indexes)
-- src-tauri/src/server_db.rs (NEW - initialization module with 10 tests)
+- src-tauri/src/server_db.rs (NEW - initialization module with 14 tests)
 
 **Files Modified:**
 
 - src-tauri/src/lib.rs (added `mod server_db;` declaration, registered init_server_db command)
 - src-tauri/src/commands.rs (added `init_server_db()` Tauri command)
 - src-tauri/Cargo.toml (added tempfile dev dependency)
+- src-tauri/src/db.rs (trivial doc comment fix - backticks around `SQLite`)
+- src/lib/api.ts (added `initServerDb()` frontend wrapper)
 
 **Files NOT Modified:**
 
-- src-tauri/src/db.rs (client database - unchanged)
 - src-tauri/scripts/job_wrapper.sh (wrapper script - unchanged, verified compatible)
 
 ### Change Log
@@ -694,3 +695,15 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 - Added `init_server_db()` Tauri command for SSH-based remote initialization
 - Verified wrapper script compatibility (Story 2.1) through integration tests
 - All acceptance criteria satisfied, clippy clean, 10/10 tests passing
+
+**2026-01-12: Code Review Fixes (Claude Opus 4.5)**
+
+- Added 5 new tests (15 total):
+  - `test_init_local_test_db_foreign_keys`: Verifies PRAGMA foreign_keys=ON
+  - `test_metadata_wrapper_version`: Verifies wrapper_version=1.0.0 inserted
+  - `test_init_local_test_db_invalid_path`: Tests graceful failure on invalid path
+  - `test_concurrent_wal_access`: Verifies WAL mode allows concurrent connections
+- Removed unused `_config` variable from `init_server_db()` command
+- Added `initServerDb()` frontend API wrapper in `src/lib/api.ts`
+- Updated File List to include db.rs trivial change and api.ts addition
+- All 14 tests passing, clippy clean

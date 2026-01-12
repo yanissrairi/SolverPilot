@@ -75,6 +75,19 @@ export async function addSshKey(passphrase: string): Promise<void> {
 }
 
 // =============================================================================
+// Server Database
+// =============================================================================
+
+/**
+ * Initialize the server-side SQLite database via SSH.
+ * Creates ~/.solverpilot-server/server.db with jobs table, indexes, and PRAGMAs.
+ * Idempotent: safe to call multiple times.
+ */
+export async function initServerDb(): Promise<void> {
+  return invoke('init_server_db');
+}
+
+// =============================================================================
 // Sync
 // =============================================================================
 

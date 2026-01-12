@@ -217,6 +217,131 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_init_local_test_db_foreign_keys() -> Result<(), Box<dyn std::error::Error>> {
+        use sqlx::sqlite::SqlitePool;
+
+        let temp_dir = TempDir::new()?;
+        let db_path = temp_dir.path().join("test_server.db");
+        let db_path_str = db_path.to_str().ok_or("Invalid path")?;
+
+        init_local_test_db(db_path_str).await?;
+
+        // Connect and verify foreign_keys is enabled
+        let pool = SqlitePool::connect(&format!("sqlite:{db_path_str}?mode=ro")).await?;
+
+        let result: (i64,) = sqlx::query_as("PRAGMA foreign_keys")
+            .fetch_one(&pool)
+            .await?;
+
+        assert_eq!(result.0, 1); // 1 = ON
+
+        pool.close().await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_wrapper_version() -> Result<(), Box<dyn std::error::Error>> {
+        use sqlx::sqlite::SqlitePool;
+
+        let temp_dir = TempDir::new()?;
+        let db_path = temp_dir.path().join("test_server.db");
+        let db_path_str = db_path.to_str().ok_or("Invalid path")?;
+
+        init_local_test_db(db_path_str).await?;
+
+        // Connect and verify wrapper_version was inserted
+        let pool = SqlitePool::connect(&format!("sqlite:{db_path_str}?mode=ro")).await?;
+
+        let result: (String, String) =
+            sqlx::query_as("SELECT key, value FROM metadata WHERE key = 'wrapper_version'")
+                .fetch_one(&pool)
+                .await?;
+
+        assert_eq!(result.0, "wrapper_version");
+        assert_eq!(result.1, "1.0.0");
+
+        pool.close().await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_init_local_test_db_invalid_path() -> Result<(), Box<dyn std::error::Error>> {
+        // Test graceful failure with invalid path (e.g., permission denied simulation)
+        // Using a path that should fail to create
+        let result =
+            init_local_test_db("/nonexistent/deeply/nested/path/that/should/fail/test.db").await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to create directory"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_wal_access() -> Result<(), Box<dyn std::error::Error>> {
+        use sqlx::sqlite::SqlitePool;
+
+        let temp_dir = TempDir::new()?;
+        let db_path = temp_dir.path().join("test_server.db");
+        let db_path_str = db_path.to_str().ok_or("Invalid path")?;
+
+        init_local_test_db(db_path_str).await?;
+
+        // Open two concurrent connections (WAL allows this)
+        let pool1 = SqlitePool::connect(&format!("sqlite:{db_path_str}?mode=rwc")).await?;
+        let pool2 = SqlitePool::connect(&format!("sqlite:{db_path_str}?mode=rwc")).await?;
+
+        // Insert from pool1
+        sqlx::query(
+            "INSERT INTO jobs (id, user, benchmark_path, status, queued_at)
+             VALUES (?, ?, ?, ?, datetime('now'))",
+        )
+        .bind("concurrent-job-1")
+        .bind("user1")
+        .bind("/path/to/bench1.py")
+        .bind("queued")
+        .execute(&pool1)
+        .await?;
+
+        // Read from pool2 while pool1 has pending work
+        let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&pool2)
+            .await?;
+
+        assert!(result.0 >= 1); // Should see the insert due to WAL
+
+        // Insert from pool2
+        sqlx::query(
+            "INSERT INTO jobs (id, user, benchmark_path, status, queued_at)
+             VALUES (?, ?, ?, ?, datetime('now'))",
+        )
+        .bind("concurrent-job-2")
+        .bind("user2")
+        .bind("/path/to/bench2.py")
+        .bind("queued")
+        .execute(&pool2)
+        .await?;
+
+        // Both connections see both jobs
+        let result1: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&pool1)
+            .await?;
+        let result2: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&pool2)
+            .await?;
+
+        assert_eq!(result1.0, 2);
+        assert_eq!(result2.0, 2);
+
+        pool1.close().await;
+        pool2.close().await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_wrapper_script_compatibility() -> Result<(), Box<dyn std::error::Error>> {
         use sqlx::sqlite::SqlitePool;
 
