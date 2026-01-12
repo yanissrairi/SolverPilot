@@ -88,6 +88,29 @@ export async function initServerDb(): Promise<void> {
 }
 
 // =============================================================================
+// Wrapper Deployment
+// =============================================================================
+
+/**
+ * Check if wrapper script is installed on remote server.
+ * Queries via SSH: test -f ~/.solverpilot/bin/job_wrapper.sh
+ *
+ * @returns true if wrapper is installed, false otherwise
+ */
+export async function checkWrapperInstalled(): Promise<boolean> {
+  return invoke('check_wrapper_installed');
+}
+
+/**
+ * Deploy wrapper script to remote server at ~/.solverpilot/bin/job_wrapper.sh.
+ * Automatically initializes server database if needed.
+ * Idempotent: safe to call multiple times (skips if already installed).
+ */
+export async function deployWrapper(): Promise<void> {
+  return invoke('deploy_wrapper');
+}
+
+// =============================================================================
 // Sync
 // =============================================================================
 

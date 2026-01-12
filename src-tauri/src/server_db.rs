@@ -274,7 +274,9 @@ mod tests {
             init_local_test_db("/nonexistent/deeply/nested/path/that/should/fail/test.db").await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to create directory"));
+        if let Err(e) = result {
+            assert!(e.contains("Failed to create directory"));
+        }
 
         Ok(())
     }
@@ -487,7 +489,7 @@ mod tests {
         assert!(result.is_err()); // Should fail CHECK constraint
 
         // Valid statuses should work
-        let valid_statuses = vec!["queued", "running", "completed", "failed", "killed"];
+        let valid_statuses = ["queued", "running", "completed", "failed", "killed"];
         for (i, status) in valid_statuses.iter().enumerate() {
             let job_id = format!("test-job-{i}");
             sqlx::query(

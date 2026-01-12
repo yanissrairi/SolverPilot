@@ -230,6 +230,58 @@ pub async fn init_server_db(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 // ============================================================================
+// Wrapper Deployment
+// ============================================================================
+
+/// Check if wrapper script is installed on remote server
+#[tauri::command]
+pub async fn check_wrapper_installed(state: State<'_, AppState>) -> Result<bool, String> {
+    let manager = get_ssh_manager!(state);
+    let wrapper_mgr = crate::wrapper::WrapperManager::new();
+
+    wrapper_mgr.check_installed(manager.executor()).await
+}
+
+/// Deploy wrapper script to remote server
+/// Also initializes server database if not already done
+#[tauri::command]
+pub async fn deploy_wrapper(state: State<'_, AppState>) -> Result<(), String> {
+    let manager = get_ssh_manager!(state);
+    let wrapper_mgr = crate::wrapper::WrapperManager::new();
+
+    // Check if already installed (idempotent)
+    if wrapper_mgr.check_installed(manager.executor()).await? {
+        tracing::debug!("Wrapper already installed, skipping deployment");
+        return Ok(());
+    }
+
+    // Deploy wrapper script
+    wrapper_mgr.deploy_to_server(manager.executor()).await?;
+
+    // Initialize server database
+    init_server_db(state).await?;
+
+    // Update wrapper version in metadata
+    let update_version_cmd = format!(
+        "sqlite3 ~/.solverpilot-server/server.db \"INSERT OR REPLACE INTO metadata (key, value) VALUES ('wrapper_version', '{}')\"",
+        crate::wrapper::WRAPPER_VERSION
+    );
+
+    manager
+        .executor()
+        .execute(&update_version_cmd)
+        .await
+        .map_err(|e| format!("Failed to update wrapper version in metadata: {e}"))?;
+
+    tracing::info!(
+        "Wrapper deployment complete (version {})",
+        crate::wrapper::WRAPPER_VERSION
+    );
+
+    Ok(())
+}
+
+// ============================================================================
 // Sync
 // ============================================================================
 

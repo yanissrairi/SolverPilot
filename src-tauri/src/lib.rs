@@ -8,6 +8,7 @@ pub mod python_deps;
 pub mod server_db;
 pub mod ssh;
 pub mod state;
+pub mod wrapper;
 
 use tauri::Manager;
 
@@ -48,6 +49,9 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::add_ssh_key,
             // Server Database
             commands::init_server_db,
+            // Wrapper Deployment
+            commands::check_wrapper_installed,
+            commands::deploy_wrapper,
             // Sync
             commands::check_sync_status,
             commands::sync_code,
