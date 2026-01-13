@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 use tauri::State;
 
 use crate::config::AppConfig;
@@ -1529,6 +1530,91 @@ pub async fn list_project_dependencies(state: State<'_, AppState>) -> Result<Vec
         .ok_or("Projet non trouvé")?;
 
     project::read_project_dependencies(&proj.name)
+}
+
+// ============================================================================
+// Queue Processing (Story 2.4)
+// ============================================================================
+
+/// Start automated queue processing (sequential execution)
+///
+/// Spawns a background task that processes jobs one at a time (FIFO order).
+/// Jobs are automatically started after previous job completes.
+/// Queue stops when empty or `stop_queue_processing()` is called.
+#[tauri::command]
+pub async fn start_queue_processing(state: State<'_, AppState>) -> Result<(), String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config not loaded")?;
+
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    let ssh_manager = state
+        .ssh_manager
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("SSH not connected")?
+        .clone();
+
+    let queue_manager = state.queue_manager.lock().await.clone();
+
+    // Check if already processing
+    if queue_manager.is_processing().await {
+        return Err("Queue is already processing".to_string());
+    }
+
+    // Start processing with config values
+    queue_manager
+        .start_processing(
+            pool,
+            Arc::new(ssh_manager),
+            config.ssh.host,
+            config.ssh.user,
+        )
+        .await?;
+
+    tracing::info!("Queue processing started");
+    Ok(())
+}
+
+/// Stop queue processing gracefully
+///
+/// Stops processing after current job completes.
+/// Does not cancel the running job.
+#[tauri::command]
+pub async fn stop_queue_processing(state: State<'_, AppState>) -> Result<(), String> {
+    let queue_manager = state.queue_manager.lock().await.clone();
+    queue_manager.stop_processing().await?;
+    tracing::info!("Queue processing will stop after current job");
+    Ok(())
+}
+
+/// Get current queue processing status
+///
+/// Returns:
+/// - `is_processing`: Whether queue is actively processing
+/// - `current_job_id`: ID of currently executing job (if any)
+#[tauri::command]
+pub async fn get_queue_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let queue_manager = state.queue_manager.lock().await.clone();
+
+    let is_processing = queue_manager.is_processing().await;
+    let current_job_id = queue_manager.current_job().await;
+
+    Ok(serde_json::json!({
+        "isProcessing": is_processing,
+        "currentJobId": current_job_id,
+    }))
 }
 
 /// Synchronise l'environnement du projet actif via `uv sync`

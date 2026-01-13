@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::config::AppConfig;
+use crate::queue_service::QueueManager;
 use crate::ssh::SshManager;
 
 /// État global de l'application (thread-safe)
@@ -15,6 +16,8 @@ pub struct AppState {
     pub job_start_time: Arc<Mutex<Option<std::time::Instant>>>,
     /// Projet actuellement sélectionné
     pub current_project_id: Arc<Mutex<Option<i64>>>,
+    /// Queue manager for sequential job processing (Story 2.4)
+    pub queue_manager: Arc<Mutex<QueueManager>>,
 }
 
 impl Default for AppState {
@@ -26,6 +29,7 @@ impl Default for AppState {
             current_job_id: Arc::new(Mutex::new(None)),
             job_start_time: Arc::new(Mutex::new(None)),
             current_project_id: Arc::new(Mutex::new(None)),
+            queue_manager: Arc::new(Mutex::new(QueueManager::new())),
         }
     }
 }

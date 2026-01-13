@@ -5,6 +5,7 @@ pub mod job;
 pub mod paths;
 pub mod project;
 pub mod python_deps;
+pub mod queue_service;
 pub mod server_db;
 pub mod ssh;
 pub mod state;
@@ -85,6 +86,10 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::kill_job,
             commands::get_job_logs,
             commands::get_job_status,
+            // Story 2.4 - Queue Processing
+            commands::start_queue_processing,
+            commands::stop_queue_processing,
+            commands::get_queue_status,
             // History
             commands::load_history,
             commands::delete_job,

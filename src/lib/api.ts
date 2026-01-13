@@ -373,6 +373,47 @@ export async function getJobStatus(): Promise<JobStatusResponse> {
 }
 
 // =============================================================================
+// Queue Processing (Story 2.4)
+// =============================================================================
+
+export interface QueueStatus {
+  isProcessing: boolean;
+  currentJobId: number | null;
+}
+
+/**
+ * Start automated queue processing (Story 2.4)
+ *
+ * Spawns a background task that processes jobs sequentially (FIFO order).
+ * Jobs are automatically started after previous job completes.
+ * Queue stops when empty or stopQueueProcessing() is called.
+ */
+export async function startQueueProcessing(): Promise<void> {
+  return invoke('start_queue_processing');
+}
+
+/**
+ * Stop queue processing gracefully (Story 2.4)
+ *
+ * Stops processing after current job completes.
+ * Does not cancel the running job.
+ */
+export async function stopQueueProcessing(): Promise<void> {
+  return invoke('stop_queue_processing');
+}
+
+/**
+ * Get current queue processing status (Story 2.4)
+ *
+ * Returns:
+ * - isProcessing: Whether queue is actively processing
+ * - currentJobId: ID of currently executing job (if any)
+ */
+export async function getQueueStatus(): Promise<QueueStatus> {
+  return invoke('get_queue_status');
+}
+
+// =============================================================================
 // History
 // =============================================================================
 
