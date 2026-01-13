@@ -5,7 +5,7 @@ use tauri::State;
 use crate::config::AppConfig;
 use crate::ssh::SshKeyStatus;
 use crate::state::{AppState, Benchmark, Job, JobStatus, JobStatusResponse, Project, SyncStatus};
-use crate::{db, job, project, python_deps, ssh};
+use crate::{db, job, project, python_deps, queue_service, ssh};
 
 // Helper macro to get SSH manager from state
 macro_rules! get_ssh_manager {
@@ -47,7 +47,17 @@ pub async fn save_config(state: State<'_, AppState>, config: AppConfig) -> Resul
 
     // Stocker dans l'état
     *state.config.lock().await = Some(config);
-    *state.db.lock().await = Some(pool);
+    *state.db.lock().await = Some(pool.clone());
+
+    // Story 2.5: Restore queue state from database on startup
+    let saved_state = queue_service::load_queue_state(&pool).await?;
+    state
+        .queue_manager
+        .lock()
+        .await
+        .restore_state(saved_state)
+        .await;
+    tracing::info!("Queue state restored on config save");
 
     Ok(())
 }
@@ -62,7 +72,17 @@ pub async fn load_config(state: State<'_, AppState>) -> Result<AppConfig, String
 
     // Stocker dans l'état
     *state.config.lock().await = Some(config.clone());
-    *state.db.lock().await = Some(pool);
+    *state.db.lock().await = Some(pool.clone());
+
+    // Story 2.5: Restore queue state from database on startup
+    let saved_state = queue_service::load_queue_state(&pool).await?;
+    state
+        .queue_manager
+        .lock()
+        .await
+        .restore_state(saved_state)
+        .await;
+    tracing::info!("Queue state restored on startup");
 
     Ok(config)
 }
@@ -1569,7 +1589,7 @@ pub async fn start_queue_processing(state: State<'_, AppState>) -> Result<(), St
     let queue_manager = state.queue_manager.lock().await.clone();
 
     // Check if already processing
-    if queue_manager.get_state().await != crate::queue_service::QueueState::Idle {
+    if queue_manager.get_state().await != queue_service::QueueState::Idle {
         return Err("Queue is already processing".to_string());
     }
 
@@ -1632,6 +1652,13 @@ pub async fn pause_queue_processing(state: State<'_, AppState>) -> Result<(), St
 /// Can only resume if currently paused.
 #[tauri::command]
 pub async fn resume_queue_processing(state: State<'_, AppState>) -> Result<(), String> {
+    let config = state
+        .config
+        .lock()
+        .await
+        .clone()
+        .ok_or("Config not loaded")?;
+
     let pool = state
         .db
         .lock()
@@ -1640,8 +1667,21 @@ pub async fn resume_queue_processing(state: State<'_, AppState>) -> Result<(), S
         .ok_or("Database not initialized")?
         .clone();
 
+    let ssh_manager = state
+        .ssh_manager
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("SSH manager not initialized")?
+        .clone();
+
+    let ssh_host = config.ssh.host.clone();
+    let ssh_username = config.ssh.user.clone();
+
     let queue_manager = state.queue_manager.lock().await.clone();
-    queue_manager.resume_processing(&pool).await?;
+    queue_manager
+        .resume_processing(pool, Arc::new(ssh_manager), ssh_host, ssh_username)
+        .await?;
 
     tracing::info!("Queue processing resumed");
     Ok(())

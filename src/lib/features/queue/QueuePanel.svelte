@@ -155,7 +155,11 @@
         return;
       }
 
-      if ((event.key === 's' || event.key === 'S') && !queueButtonDisabled()) {
+      if (
+        (event.key === 's' || event.key === 'S') &&
+        !queueButtonDisabled() &&
+        !queueControlLoading
+      ) {
         event.preventDefault();
         void handleQueueControl();
       }
@@ -166,6 +170,13 @@
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
+  });
+
+  // Story 2.5 - Queue completion toast notification
+  $effect(() => {
+    if (queue.justCompleted) {
+      toast.success('Queue completed - all jobs finished');
+    }
   });
 
   onMount(() => {

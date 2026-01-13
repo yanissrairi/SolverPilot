@@ -71,6 +71,19 @@ pub async fn init_db(db_path: &str) -> Result<SqlitePool, String> {
     .await
     .map_err(|e| format!("Erreur création table jobs: {e}"))?;
 
+    // Table des métadonnées (queue state persistence - Story 2.5)
+    sqlx::query(
+        r"
+        CREATE TABLE IF NOT EXISTS metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        ",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| format!("Erreur création table metadata: {e}"))?;
+
     // Enable foreign keys
     sqlx::query("PRAGMA foreign_keys = ON")
         .execute(&pool)

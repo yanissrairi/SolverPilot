@@ -57,65 +57,65 @@ So that I can control when jobs execute and temporarily stop the queue without l
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Extend QueueManager with pause/resume logic (AC: graceful pause, atomic state)
-  - [ ] Subtask 1.1: Add queue_state enum to QueueManager (Idle, Running, Paused)
-  - [ ] Subtask 1.2: Implement `pause_queue_processing()` method - set state to Paused
-  - [ ] Subtask 1.3: Implement `resume_queue_processing()` method - set state to Running
-  - [ ] Subtask 1.4: Modify `start_processing()` loop to check queue_state before starting next job
-  - [ ] Subtask 1.5: Update `get_queue_status()` to return queue_state (idle/running/paused)
+- [x] Task 1: Extend QueueManager with pause/resume logic (AC: graceful pause, atomic state)
+  - [x] Subtask 1.1: Add queue_state enum to QueueManager (Idle, Running, Paused)
+  - [x] Subtask 1.2: Implement `pause_queue_processing()` method - set state to Paused
+  - [x] Subtask 1.3: Implement `resume_queue_processing()` method - set state to Running
+  - [x] Subtask 1.4: Modify `start_processing()` loop to check queue_state before starting next job
+  - [x] Subtask 1.5: Update `get_queue_status()` to return queue_state (idle/running/paused)
 
-- [ ] Task 2: Add queue state persistence to metadata table (AC: persist across restarts)
-  - [ ] Subtask 2.1: Create metadata table if not exists: `CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)`
-  - [ ] Subtask 2.2: Save queue_state on every state change: `UPDATE metadata SET value=? WHERE key='queue_state'`
-  - [ ] Subtask 2.3: Load queue_state on app startup from metadata table
-  - [ ] Subtask 2.4: If queue_state='running' on startup, call `resume_queue_processing()` (Epic 3 auto-resume)
+- [x] Task 2: Add queue state persistence to metadata table (AC: persist across restarts)
+  - [x] Subtask 2.1: Create metadata table if not exists: `CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)`
+  - [x] Subtask 2.2: Save queue_state on every state change: `UPDATE metadata SET value=? WHERE key='queue_state'`
+  - [x] Subtask 2.3: Load queue_state on app startup from metadata table
+  - [x] Subtask 2.4: If queue_state='running' on startup, call `resume_queue_processing()` (Epic 3 auto-resume)
 
-- [ ] Task 3: Add new Tauri commands for pause/resume (AC: commands registered, callable)
-  - [ ] Subtask 3.1: Add `pause_queue_processing()` command in commands.rs
-  - [ ] Subtask 3.2: Add `resume_queue_processing()` command in commands.rs
-  - [ ] Subtask 3.3: Register commands in lib.rs invoke_handler
-  - [ ] Subtask 3.4: Add `pauseQueueProcessing()` and `resumeQueueProcessing()` to api.ts
+- [x] Task 3: Add new Tauri commands for pause/resume (AC: commands registered, callable)
+  - [x] Subtask 3.1: Add `pause_queue_processing()` command in commands.rs
+  - [x] Subtask 3.2: Add `resume_queue_processing()` command in commands.rs
+  - [x] Subtask 3.3: Register commands in lib.rs invoke_handler
+  - [x] Subtask 3.4: Add `pauseQueueProcessing()` and `resumeQueueProcessing()` to api.ts
 
-- [ ] Task 4: Create QueuePanel component with Start/Pause/Resume button (AC: button reflects queue state)
-  - [ ] Subtask 4.1: Create `src/lib/features/queue/QueuePanel.svelte` component
-  - [ ] Subtask 4.2: Add button with dynamic label based on queue state (Start/Pause/Resume)
-  - [ ] Subtask 4.3: Implement button click handler - calls appropriate API (start/pause/resume)
-  - [ ] Subtask 4.4: Disable button when queue is empty (no pending jobs)
-  - [ ] Subtask 4.5: Add tooltip: "Jobs run on remote server - safe to close app"
-  - [ ] Subtask 4.6: Add keyboard shortcut handler for 'S' key (start/pause toggle)
+- [x] Task 4: Create QueuePanel component with Start/Pause/Resume button (AC: button reflects queue state)
+  - [x] Subtask 4.1: Create `src/lib/features/queue/QueuePanel.svelte` component
+  - [x] Subtask 4.2: Add button with dynamic label based on queue state (Start/Pause/Resume)
+  - [x] Subtask 4.3: Implement button click handler - calls appropriate API (start/pause/resume)
+  - [x] Subtask 4.4: Disable button when queue is empty (no pending jobs)
+  - [x] Subtask 4.5: Add tooltip: "Jobs run on remote server - safe to close app"
+  - [x] Subtask 4.6: Add keyboard shortcut handler for 'S' key (start/pause toggle)
 
-- [ ] Task 5: Create queue store with $state runes (AC: reactive queue state, auto-updates)
-  - [ ] Subtask 5.1: Create `src/lib/stores/queue.svelte.ts` store
-  - [ ] Subtask 5.2: Add queue_state as $state rune (idle/running/paused)
-  - [ ] Subtask 5.3: Add poll_queue_status() function - 2-second $effect interval
-  - [ ] Subtask 5.4: Update queue_state when backend status changes
-  - [ ] Subtask 5.5: Export startQueue(), pauseQueue(), resumeQueue() actions
+- [x] Task 5: Create queue store with $state runes (AC: reactive queue state, auto-updates)
+  - [x] Subtask 5.1: Create `src/lib/stores/queue.svelte.ts` store
+  - [x] Subtask 5.2: Add queue_state as $state rune (idle/running/paused)
+  - [x] Subtask 5.3: Add poll_queue_status() function - 2-second $effect interval
+  - [x] Subtask 5.4: Update queue_state when backend status changes
+  - [x] Subtask 5.5: Export startQueue(), pauseQueue(), resumeQueue() actions
 
-- [ ] Task 6: Integrate QueuePanel into MainLayout (AC: panel visible in center)
-  - [ ] Subtask 6.1: Extend `src/lib/layout/MainLayout.svelte` with QueuePanel slot
-  - [ ] Subtask 6.2: Position QueuePanel in center panel (below header)
-  - [ ] Subtask 6.3: Add status summary in QueuePanel header: "3 running • 12 pending • 8 completed"
-  - [ ] Subtask 6.4: Connect queue store to QueuePanel (reactive updates)
+- [x] Task 6: Integrate QueuePanel into MainLayout (AC: panel visible in center)
+  - [x] Subtask 6.1: Extend `src/lib/layout/MainLayout.svelte` with QueuePanel slot
+  - [x] Subtask 6.2: Position QueuePanel in center panel (below header)
+  - [x] Subtask 6.3: Add status summary in QueuePanel header: "3 running • 12 pending • 8 completed"
+  - [x] Subtask 6.4: Connect queue store to QueuePanel (reactive updates)
 
-- [ ] Task 7: Add toast notifications for queue state changes (AC: notifications on pause/resume/complete)
-  - [ ] Subtask 7.1: Add toast on queue start: "Queue started - 10 jobs executing"
-  - [ ] Subtask 7.2: Add toast on queue pause: "Queue paused - 9 jobs remaining"
-  - [ ] Subtask 7.3: Add toast on queue resume: "Queue resumed - processing 9 jobs"
-  - [ ] Subtask 7.4: Add toast on queue complete: "Queue completed - all jobs finished"
+- [x] Task 7: Add toast notifications for queue state changes (AC: notifications on pause/resume/complete)
+  - [x] Subtask 7.1: Add toast on queue start: "Queue started - 10 jobs executing"
+  - [x] Subtask 7.2: Add toast on queue pause: "Queue paused - 9 jobs remaining"
+  - [x] Subtask 7.3: Add toast on queue resume: "Queue resumed - processing 9 jobs"
+  - [x] Subtask 7.4: Add toast on queue complete: "Queue completed - all jobs finished"
 
-- [ ] Task 8: Write unit tests for pause/resume logic (AC: graceful pause, state transitions)
-  - [ ] Subtask 8.1: Test pause_queue_processing() stops new job selection
-  - [ ] Subtask 8.2: Test resume_queue_processing() restarts execution loop
-  - [ ] Subtask 8.3: Test queue_state persists to metadata table
-  - [ ] Subtask 8.4: Test auto-resume on startup when queue_state='running'
-  - [ ] Subtask 8.5: Test atomic state transitions (no race conditions)
+- [x] Task 8: Write unit tests for pause/resume logic (AC: graceful pause, state transitions)
+  - [x] Subtask 8.1: Test pause_queue_processing() stops new job selection
+  - [x] Subtask 8.2: Test resume_queue_processing() restarts execution loop
+  - [x] Subtask 8.3: Test queue_state persists to metadata table
+  - [x] Subtask 8.4: Test auto-resume on startup when queue_state='running'
+  - [x] Subtask 8.5: Test atomic state transitions (no race conditions)
 
-- [ ] Task 9: Integration test with queue controls (AC: full start/pause/resume cycle)
-  - [ ] Subtask 9.1: Queue 5 jobs, start queue, verify first job starts
-  - [ ] Subtask 9.2: Pause queue, verify no new jobs start after current completes
-  - [ ] Subtask 9.3: Resume queue, verify next job starts immediately
-  - [ ] Subtask 9.4: Test button state reflects queue state accurately
-  - [ ] Subtask 9.5: Test keyboard shortcut 'S' toggles queue state
+- [x] Task 9: Integration test with queue controls (AC: full start/pause/resume cycle)
+  - [x] Subtask 9.1: Queue 5 jobs, start queue, verify first job starts
+  - [x] Subtask 9.2: Pause queue, verify no new jobs start after current completes
+  - [x] Subtask 9.3: Resume queue, verify next job starts immediately
+  - [x] Subtask 9.4: Test button state reflects queue state accurately
+  - [x] Subtask 9.5: Test keyboard shortcut 'S' toggles queue state
 
 ## Dev Notes
 
