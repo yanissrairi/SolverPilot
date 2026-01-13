@@ -399,14 +399,36 @@ export async function stopQueueProcessing(): Promise<void> {
 }
 
 /**
- * Get current queue processing status (Story 2.4)
+ * Get current queue processing status (Story 2.4, enhanced in Story 2.5)
  *
  * Returns:
- * - isProcessing: Whether queue is actively processing
+ * - state: Queue state (idle/running/paused)
  * - currentJobId: ID of currently executing job (if any)
+ * - pendingCount: Number of pending jobs
+ * - runningCount: Number of running jobs
+ * - completedCount: Number of completed jobs
  */
 export async function getQueueStatus(): Promise<QueueStatus> {
   return invoke('get_queue_status');
+}
+
+/**
+ * Pause queue processing (Story 2.5)
+ *
+ * Running jobs complete naturally, new jobs don't start.
+ * Can only pause if currently running.
+ */
+export async function pauseQueueProcessing(): Promise<void> {
+  return invoke('pause_queue_processing');
+}
+
+/**
+ * Resume queue processing from paused state (Story 2.5)
+ *
+ * Can only resume if currently paused.
+ */
+export async function resumeQueueProcessing(): Promise<void> {
+  return invoke('resume_queue_processing');
 }
 
 // =============================================================================

@@ -12,6 +12,7 @@
   import StatusBadge from '$lib/ui/StatusBadge.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { toast } from '$lib/stores/toast.svelte';
+  import { queue } from '$lib/stores/queue.svelte';
 
   let jobs = $state<Job[]>([]);
   let showCancelAllModal = $state(false);
@@ -79,6 +80,93 @@
     { value: 'failed', label: 'Failed' },
     { value: 'killed', label: 'Killed' },
   ];
+
+  // Story 2.5 - Queue control button state
+  let queueControlLoading = $state(false);
+
+  // Story 2.5 - Derived button label based on queue state
+  let queueButtonLabel = $derived(() => {
+    if (queue.state === 'idle') return 'Start Queue';
+    if (queue.state === 'running') return 'Pause Queue';
+    return 'Resume Queue'; // paused
+  });
+
+  // Story 2.5 - Button variant based on queue state
+  let queueButtonVariant = $derived(() => {
+    if (queue.state === 'running') return 'warning';
+    return 'primary';
+  });
+
+  // Story 2.5 - Button disabled when no pending jobs
+  let queueButtonDisabled = $derived(() => {
+    return queue.pendingCount === 0 && queue.state === 'idle';
+  });
+
+  // Story 2.5 - Button tooltip
+  let queueButtonTooltip = $derived(() => {
+    if (queue.pendingCount === 0 && queue.state === 'idle') {
+      return 'No pending jobs to execute';
+    }
+    if (queue.state === 'idle') {
+      return 'Jobs run on remote server - safe to close app';
+    }
+    if (queue.state === 'running') {
+      return 'Pause queue - running jobs will complete';
+    }
+    return 'Resume queue processing'; // paused
+  });
+
+  // Story 2.5 - Queue status summary for header
+  let queueStatusSummary = $derived(() => {
+    return `${String(queue.runningCount)} running • ${String(queue.pendingCount)} pending • ${String(queue.completedCount)} completed`;
+  });
+
+  // Story 2.5 - Handle queue control button click
+  async function handleQueueControl() {
+    if (queueControlLoading) return;
+
+    try {
+      queueControlLoading = true;
+
+      if (queue.state === 'idle') {
+        await queue.startQueue();
+        toast.success(`Queue started - ${String(queue.pendingCount)} jobs executing`);
+      } else if (queue.state === 'running') {
+        await queue.pauseQueue();
+        toast.info(`Queue paused - ${String(queue.pendingCount)} jobs remaining`);
+      } else {
+        // paused
+        await queue.resumeQueue();
+        toast.success(`Queue resumed - processing ${String(queue.pendingCount)} jobs`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to control queue: ${message}`);
+    } finally {
+      queueControlLoading = false;
+    }
+  }
+
+  // Story 2.5 - Keyboard shortcut handler for 'S' key
+  $effect(() => {
+    function handleKeyPress(event: KeyboardEvent) {
+      // Only trigger if not in an input field
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if ((event.key === 's' || event.key === 'S') && !queueButtonDisabled()) {
+        event.preventDefault();
+        void handleQueueControl();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  });
 
   onMount(() => {
     // Story 1.5 - Load filter preference from localStorage
@@ -258,10 +346,13 @@
 <div
   class="h-full flex flex-col bg-slate-900/75 backdrop-blur-sm rounded-xl border border-slate-700/50 shadow-2xl"
 >
-  <!-- Header with Filter Dropdown and Cancel All button (Story 1.4 + 1.5) -->
+  <!-- Header with Filter, Queue Controls, and Cancel All (Story 1.4 + 1.5 + 2.5) -->
   <div class="p-4 border-b border-slate-700/50 flex justify-between items-center">
     <div class="flex items-center gap-3">
       <h2 class="text-lg font-semibold text-slate-200">Queue</h2>
+
+      <!-- Story 2.5 - Queue status summary -->
+      <span class="text-xs text-slate-400">{queueStatusSummary()}</span>
 
       <!-- Filter Dropdown (Story 1.5) -->
       <div class="relative">
@@ -309,17 +400,41 @@
       </div>
     </div>
 
-    {#if jobsByStatus.pending.length > 0}
+    <!-- Story 2.5 - Queue control buttons -->
+    <div class="flex items-center gap-2">
+      <!-- Start/Pause/Resume button -->
       <button
-        class="text-sm text-red-400 hover:text-red-300 px-3 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
-        onclick={() => {
-          showCancelAllModal = true;
-        }}
-        aria-label="Cancel all pending jobs"
+        class="px-4 py-2 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed {queueButtonVariant() ===
+        'warning'
+          ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+          : 'bg-blue-600 hover:bg-blue-700 text-white'}"
+        onclick={handleQueueControl}
+        disabled={queueButtonDisabled() || queueControlLoading}
+        title={queueButtonTooltip()}
+        aria-label={queueButtonLabel()}
       >
-        Cancel All
+        {#if queueControlLoading}
+          <span
+            class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+          ></span>
+        {:else}
+          {queueButtonLabel()}
+          <span class="ml-1 text-xs opacity-75">(S)</span>
+        {/if}
       </button>
-    {/if}
+
+      {#if jobsByStatus.pending.length > 0}
+        <button
+          class="text-sm text-red-400 hover:text-red-300 px-3 py-1 rounded border border-red-500/30 hover:bg-red-500/10 transition-colors"
+          onclick={() => {
+            showCancelAllModal = true;
+          }}
+          aria-label="Cancel all pending jobs"
+        >
+          Cancel All
+        </button>
+      {/if}
+    </div>
   </div>
 
   <!-- Scrolling container with overflow-y-auto (Task 8.1) -->

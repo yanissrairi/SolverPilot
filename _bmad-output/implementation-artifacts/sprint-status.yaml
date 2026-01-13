@@ -53,8 +53,8 @@ development_status:
   2-2-server-side-sqlite-database-schema-initialization: done
   2-3-wrapper-deployment-via-ssh: done
   2-4-queue-execution-backend-sequential-job-processing: done
-  2-5-start-pause-resume-queue-controls-frontend-backend: ready-for-dev
-  2-6-job-state-reconciliation-triple-redundancy-validation: backlog
+  2-5-start-pause-resume-queue-controls-frontend-backend: review
+  2-6-job-state-reconciliation-triple-redundancy-validation: ready-for-dev
   epic-2-retrospective: optional
 
   epic-3: backlog

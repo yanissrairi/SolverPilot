@@ -90,6 +90,9 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::start_queue_processing,
             commands::stop_queue_processing,
             commands::get_queue_status,
+            // Story 2.5 - Queue Controls (Pause/Resume)
+            commands::pause_queue_processing,
+            commands::resume_queue_processing,
             // History
             commands::load_history,
             commands::delete_job,

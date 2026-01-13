@@ -92,11 +92,15 @@ export interface JobStatusResponse {
 
 /**
  * Queue processing status returned by getQueueStatus()
+ *
+ * Story 2.5: Enhanced with state (idle/running/paused) and job counts
  */
 export interface QueueStatus {
-  isProcessing: boolean;
+  state: 'idle' | 'running' | 'paused';
   currentJobId: number | null;
   pendingCount: number;
+  runningCount: number;
+  completedCount: number;
 }
 
 // =============================================================================

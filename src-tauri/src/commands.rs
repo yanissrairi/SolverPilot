@@ -1599,20 +1599,63 @@ pub async fn stop_queue_processing(state: State<'_, AppState>) -> Result<(), Str
     Ok(())
 }
 
+/// Pause queue processing (graceful)
+///
+/// Running jobs complete naturally, new jobs don't start.
+/// Can only pause if currently running.
+#[tauri::command]
+pub async fn pause_queue_processing(state: State<'_, AppState>) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    let queue_manager = state.queue_manager.lock().await.clone();
+    queue_manager.pause_processing(&pool).await?;
+
+    tracing::info!("Queue processing paused");
+    Ok(())
+}
+
+/// Resume queue processing from paused state
+///
+/// Can only resume if currently paused.
+#[tauri::command]
+pub async fn resume_queue_processing(state: State<'_, AppState>) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    let queue_manager = state.queue_manager.lock().await.clone();
+    queue_manager.resume_processing(&pool).await?;
+
+    tracing::info!("Queue processing resumed");
+    Ok(())
+}
+
 /// Get current queue processing status
 ///
 /// Returns:
-/// - `is_processing`: Whether queue is actively processing
-/// - `current_job_id`: ID of currently executing job (if any)
-/// - `pending_count`: Number of pending jobs in queue
+/// - `state`: Queue state (idle/running/paused)
+/// - `currentJobId`: ID of currently executing job (if any)
+/// - `pendingCount`: Number of pending jobs in queue
+/// - `runningCount`: Number of running jobs
+/// - `completedCount`: Number of completed jobs
 #[tauri::command]
 pub async fn get_queue_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let queue_manager = state.queue_manager.lock().await.clone();
 
-    let is_processing = queue_manager.is_processing().await;
+    let queue_state = queue_manager.get_state().await;
     let current_job_id = queue_manager.current_job().await;
 
-    // Get pending job count from database
+    // Get job counts from database
     let pool = state
         .db
         .lock()
@@ -1627,10 +1670,24 @@ pub async fn get_queue_status(state: State<'_, AppState>) -> Result<serde_json::
             .await
             .map_err(|e| format!("Failed to count pending jobs: {e}"))?;
 
+    let running_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE status = 'running'")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| format!("Failed to count running jobs: {e}"))?;
+
+    let completed_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE status = 'completed'")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| format!("Failed to count completed jobs: {e}"))?;
+
     Ok(serde_json::json!({
-        "isProcessing": is_processing,
+        "state": queue_state.as_str(),
         "currentJobId": current_job_id,
         "pendingCount": pending_count,
+        "runningCount": running_count,
+        "completedCount": completed_count,
     }))
 }
 

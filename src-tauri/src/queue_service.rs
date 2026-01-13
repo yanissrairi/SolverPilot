@@ -14,21 +14,51 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{interval, Duration};
 
+/// Queue state for pause/resume functionality
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueueState {
+    /// Queue not processing, no jobs started
+    Idle,
+    /// Queue actively processing jobs
+    Running,
+    /// Queue paused, running jobs completing, new jobs not starting
+    Paused,
+}
+
+impl QueueState {
+    /// Convert `QueueState` to string for persistence
+    pub const fn as_str(&self) -> &str {
+        match self {
+            Self::Idle => "idle",
+            Self::Running => "running",
+            Self::Paused => "paused",
+        }
+    }
+
+    /// Parse `QueueState` from string
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "running" => Self::Running,
+            "paused" => Self::Paused,
+            _ => Self::Idle,
+        }
+    }
+}
+
 /// Queue execution manager
 ///
 /// Manages sequential job processing with background task execution.
 /// Ensures only one job runs at a time (`max_concurrent` = 1).
 #[derive(Clone)]
 pub struct QueueManager {
-    is_processing: Arc<Mutex<bool>>,
+    queue_state: Arc<Mutex<QueueState>>,
     current_job_id: Arc<Mutex<Option<i64>>>,
 }
-
 impl QueueManager {
     /// Create a new queue manager
     pub fn new() -> Self {
         Self {
-            is_processing: Arc::new(Mutex::new(false)),
+            queue_state: Arc::new(Mutex::new(QueueState::Idle)),
             current_job_id: Arc::new(Mutex::new(None)),
         }
     }
@@ -39,7 +69,7 @@ impl QueueManager {
     /// 1. Selects next pending job by `queue_position`
     /// 2. Executes job (rsync → tmux → poll)
     /// 3. Auto-starts next job after completion
-    /// 4. Stops when queue is empty
+    /// 4. Stops when queue is empty or paused
     pub async fn start_processing(
         &self,
         db: SqlitePool,
@@ -47,25 +77,42 @@ impl QueueManager {
         ssh_host: String,
         ssh_username: String,
     ) -> Result<(), String> {
-        let mut processing = self.is_processing.lock().await;
-        if *processing {
+        let mut state = self.queue_state.lock().await;
+
+        // Prevent starting if already running
+        if *state == QueueState::Running {
             return Err("Queue already processing".to_string());
         }
-        *processing = true;
-        drop(processing);
+
+        // Change state to Running
+        *state = QueueState::Running;
+        drop(state);
+
+        // Persist state to database
+        save_queue_state(&db, QueueState::Running).await?;
 
         // Clone Arc references for background task
-        let is_processing = Arc::clone(&self.is_processing);
+        let queue_state = Arc::clone(&self.queue_state);
         let current_job_id = Arc::clone(&self.current_job_id);
         let ssh_host_cloned = ssh_host.clone();
         let ssh_username_cloned = ssh_username.clone();
 
         tokio::spawn(async move {
             loop {
-                // Check if still processing
-                if !*is_processing.lock().await {
+                // Check queue state
+                let state = queue_state.lock().await.clone();
+
+                // Stop if idle
+                if state == QueueState::Idle {
                     tracing::info!("Queue processing stopped");
                     break;
+                }
+
+                // Wait if paused
+                if state == QueueState::Paused {
+                    tracing::debug!("Queue paused, waiting...");
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
                 }
 
                 // Select next job
@@ -89,7 +136,10 @@ impl QueueManager {
                     }
                     Ok(None) => {
                         // Queue empty, stop processing
-                        *is_processing.lock().await = false;
+                        *queue_state.lock().await = QueueState::Idle;
+                        if let Err(e) = save_queue_state(&db, QueueState::Idle).await {
+                            tracing::error!("Failed to save idle state: {}", e);
+                        }
                         tracing::info!("Queue completed - all jobs finished");
                         break;
                     }
@@ -104,19 +154,71 @@ impl QueueManager {
         Ok(())
     }
 
-    /// Stop queue processing gracefully
+    /// Pause queue processing (graceful)
+    ///
+    /// Running jobs complete naturally, new jobs don't start.
+    /// Can only pause if currently running.
+    pub async fn pause_processing(&self, db: &SqlitePool) -> Result<(), String> {
+        let mut state = self.queue_state.lock().await;
+
+        // Can only pause if currently running
+        if *state != QueueState::Running {
+            return Err(format!("Cannot pause queue in state: {:?}", *state));
+        }
+
+        // Change state to Paused
+        *state = QueueState::Paused;
+        drop(state);
+
+        // Persist state to database
+        save_queue_state(db, QueueState::Paused).await?;
+
+        tracing::info!("Queue paused - running jobs will complete, new jobs won't start");
+        Ok(())
+    }
+
+    /// Resume queue processing from paused state
+    ///
+    /// Can only resume if currently paused.
+    pub async fn resume_processing(&self, db: &SqlitePool) -> Result<(), String> {
+        let mut state = self.queue_state.lock().await;
+
+        // Can only resume if currently paused
+        if *state != QueueState::Paused {
+            return Err(format!("Cannot resume queue in state: {:?}", *state));
+        }
+
+        // Change state to Running
+        *state = QueueState::Running;
+        drop(state);
+
+        // Persist state to database
+        save_queue_state(db, QueueState::Running).await?;
+
+        tracing::info!("Queue resumed - processing pending jobs");
+        Ok(())
+    }
+
+    /// Stop queue processing gracefully (deprecated - use pause instead)
     ///
     /// Stops processing after current job completes.
     /// Does not cancel running job.
+    #[deprecated(note = "Use pause_processing instead")]
     pub async fn stop_processing(&self) -> Result<(), String> {
-        *self.is_processing.lock().await = false;
+        *self.queue_state.lock().await = QueueState::Idle;
         tracing::info!("Queue processing will stop after current job");
         Ok(())
     }
 
-    /// Get current processing state
+    /// Get current queue state
+    pub async fn get_state(&self) -> QueueState {
+        self.queue_state.lock().await.clone()
+    }
+
+    /// Get current processing state (for backward compatibility)
+    #[deprecated(note = "Use get_state instead")]
     pub async fn is_processing(&self) -> bool {
-        *self.is_processing.lock().await
+        *self.queue_state.lock().await == QueueState::Running
     }
 
     /// Get currently executing job ID
@@ -447,6 +549,34 @@ async fn mark_job_failed(db: &SqlitePool, job_id: i64, error: &str) -> Result<()
     Ok(())
 }
 
+/// Save queue state to metadata table
+async fn save_queue_state(db: &SqlitePool, state: QueueState) -> Result<(), String> {
+    sqlx::query("INSERT OR REPLACE INTO metadata (key, value) VALUES ('queue_state', ?)")
+        .bind(state.as_str())
+        .execute(db)
+        .await
+        .map_err(|e| format!("Failed to save queue state: {e}"))?;
+
+    tracing::debug!("Queue state saved: {:?}", state);
+    Ok(())
+}
+
+/// Load queue state from metadata table
+pub async fn load_queue_state(db: &SqlitePool) -> Result<QueueState, String> {
+    let result = sqlx::query("SELECT value FROM metadata WHERE key = 'queue_state'")
+        .fetch_optional(db)
+        .await
+        .map_err(|e| format!("Failed to load queue state: {e}"))?;
+
+    let state = result.map_or(QueueState::Idle, |row| {
+        let value: String = row.get("value");
+        QueueState::parse(&value)
+    });
+
+    tracing::debug!("Queue state loaded: {:?}", state);
+    Ok(state)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,6 +728,135 @@ mod tests {
         assert!(create_cmd.contains("job_wrapper.sh"));
     }
 
-    // Note: Integration tests with mock SSH/DB require additional infrastructure
-    // and are covered in end-to-end testing. See Story 2.4 Dev Notes.
+    // Story 2.5 - Queue state tests
+    #[test]
+    fn test_queue_state_as_str() {
+        assert_eq!(QueueState::Idle.as_str(), "idle");
+        assert_eq!(QueueState::Running.as_str(), "running");
+        assert_eq!(QueueState::Paused.as_str(), "paused");
+    }
+
+    #[test]
+    fn test_queue_state_parse() {
+        assert_eq!(QueueState::parse("idle"), QueueState::Idle);
+        assert_eq!(QueueState::parse("running"), QueueState::Running);
+        assert_eq!(QueueState::parse("paused"), QueueState::Paused);
+        // Unknown values default to Idle
+        assert_eq!(QueueState::parse("unknown"), QueueState::Idle);
+        assert_eq!(QueueState::parse(""), QueueState::Idle);
+    }
+
+    #[test]
+    fn test_queue_state_round_trip() {
+        // Test that as_str → parse is idempotent
+        let states = [QueueState::Idle, QueueState::Running, QueueState::Paused];
+        for state in &states {
+            let str_repr = state.as_str();
+            let parsed = QueueState::parse(str_repr);
+            assert_eq!(*state, parsed);
+        }
+    }
+
+    #[test]
+    fn test_queue_state_equality() {
+        assert_eq!(QueueState::Idle, QueueState::Idle);
+        assert_eq!(QueueState::Running, QueueState::Running);
+        assert_eq!(QueueState::Paused, QueueState::Paused);
+        assert_ne!(QueueState::Idle, QueueState::Running);
+        assert_ne!(QueueState::Running, QueueState::Paused);
+        assert_ne!(QueueState::Paused, QueueState::Idle);
+    }
+
+    #[tokio::test]
+    async fn test_queue_manager_initial_state() -> Result<(), Box<dyn std::error::Error>> {
+        let manager = QueueManager::new();
+        let state = manager.get_state().await;
+        assert_eq!(state, QueueState::Idle);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_pause_queue_from_non_running_fails() -> Result<(), Box<dyn std::error::Error>> {
+        // Setup in-memory DB
+        let db = sqlx::SqlitePool::connect(":memory:").await?;
+
+        // Create metadata table
+        sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
+            .execute(&db)
+            .await?;
+
+        let manager = QueueManager::new();
+
+        // Try to pause when idle (should fail)
+        let result = manager.pause_processing(&db).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Cannot pause queue"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_resume_queue_from_non_paused_fails() -> Result<(), Box<dyn std::error::Error>> {
+        // Setup in-memory DB
+        let db = sqlx::SqlitePool::connect(":memory:").await?;
+
+        // Create metadata table
+        sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
+            .execute(&db)
+            .await?;
+
+        let manager = QueueManager::new();
+
+        // Try to resume when idle (should fail)
+        let result = manager.resume_processing(&db).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Cannot resume queue"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_save_and_load_queue_state() -> Result<(), Box<dyn std::error::Error>> {
+        // Setup in-memory DB
+        let db = sqlx::SqlitePool::connect(":memory:").await?;
+
+        // Create metadata table
+        sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
+            .execute(&db)
+            .await?;
+
+        // Save each state and verify it loads correctly
+        save_queue_state(&db, QueueState::Idle).await?;
+        let loaded = load_queue_state(&db).await?;
+        assert_eq!(loaded, QueueState::Idle);
+
+        save_queue_state(&db, QueueState::Running).await?;
+        let loaded = load_queue_state(&db).await?;
+        assert_eq!(loaded, QueueState::Running);
+
+        save_queue_state(&db, QueueState::Paused).await?;
+        let loaded = load_queue_state(&db).await?;
+        assert_eq!(loaded, QueueState::Paused);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_load_queue_state_defaults_to_idle() -> Result<(), Box<dyn std::error::Error>> {
+        // Setup in-memory DB with no saved state
+        let db = sqlx::SqlitePool::connect(":memory:").await?;
+
+        // Create metadata table but don't save any state
+        sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
+            .execute(&db)
+            .await?;
+
+        let loaded = load_queue_state(&db).await?;
+        assert_eq!(loaded, QueueState::Idle);
+
+        Ok(())
+    }
+
+    // Note: Full integration tests with mock SSH/DB require additional infrastructure
+    // and are covered in end-to-end testing. See Story 2.4 and 2.5 Dev Notes.
 }
