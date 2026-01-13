@@ -1569,7 +1569,7 @@ pub async fn start_queue_processing(state: State<'_, AppState>) -> Result<(), St
     let queue_manager = state.queue_manager.lock().await.clone();
 
     // Check if already processing
-    if queue_manager.is_processing().await {
+    if queue_manager.get_state().await != crate::queue_service::QueueState::Idle {
         return Err("Queue is already processing".to_string());
     }
 
@@ -1587,14 +1587,21 @@ pub async fn start_queue_processing(state: State<'_, AppState>) -> Result<(), St
     Ok(())
 }
 
-/// Stop queue processing gracefully
+/// Stop queue processing gracefully (deprecated - use `pause_queue_processing`)
 ///
 /// Stops processing after current job completes.
 /// Does not cancel the running job.
 #[tauri::command]
 pub async fn stop_queue_processing(state: State<'_, AppState>) -> Result<(), String> {
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
     let queue_manager = state.queue_manager.lock().await.clone();
-    queue_manager.stop_processing().await?;
+    queue_manager.pause_processing(&pool).await?;
     tracing::info!("Queue processing will stop after current job");
     Ok(())
 }

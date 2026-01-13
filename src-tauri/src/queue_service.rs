@@ -670,10 +670,8 @@ mod tests {
         // Verify wrapper command format matches AC specification
         let job_id: i64 = 12345;
         let benchmark_name = "bench.py";
-        let wrapper_cmd = format!(
-            "~/.solverpilot/bin/job_wrapper.sh {} python3 {}",
-            job_id, benchmark_name
-        );
+        let wrapper_cmd =
+            format!("~/.solverpilot/bin/job_wrapper.sh {job_id} python3 {benchmark_name}");
 
         assert!(wrapper_cmd.starts_with("~/.solverpilot/bin/job_wrapper.sh"));
         assert!(wrapper_cmd.contains("12345"));
@@ -778,7 +776,7 @@ mod tests {
     #[tokio::test]
     async fn test_pause_queue_from_non_running_fails() -> Result<(), Box<dyn std::error::Error>> {
         // Setup in-memory DB
-        let db = sqlx::SqlitePool::connect(":memory:").await?;
+        let db = SqlitePool::connect(":memory:").await?;
 
         // Create metadata table
         sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
@@ -790,7 +788,9 @@ mod tests {
         // Try to pause when idle (should fail)
         let result = manager.pause_processing(&db).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Cannot pause queue"));
+        if let Err(e) = result {
+            assert!(e.contains("Cannot pause queue"));
+        }
 
         Ok(())
     }
@@ -798,7 +798,7 @@ mod tests {
     #[tokio::test]
     async fn test_resume_queue_from_non_paused_fails() -> Result<(), Box<dyn std::error::Error>> {
         // Setup in-memory DB
-        let db = sqlx::SqlitePool::connect(":memory:").await?;
+        let db = SqlitePool::connect(":memory:").await?;
 
         // Create metadata table
         sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
@@ -810,7 +810,9 @@ mod tests {
         // Try to resume when idle (should fail)
         let result = manager.resume_processing(&db).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Cannot resume queue"));
+        if let Err(e) = result {
+            assert!(e.contains("Cannot resume queue"));
+        }
 
         Ok(())
     }
@@ -818,7 +820,7 @@ mod tests {
     #[tokio::test]
     async fn test_save_and_load_queue_state() -> Result<(), Box<dyn std::error::Error>> {
         // Setup in-memory DB
-        let db = sqlx::SqlitePool::connect(":memory:").await?;
+        let db = SqlitePool::connect(":memory:").await?;
 
         // Create metadata table
         sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
@@ -844,7 +846,7 @@ mod tests {
     #[tokio::test]
     async fn test_load_queue_state_defaults_to_idle() -> Result<(), Box<dyn std::error::Error>> {
         // Setup in-memory DB with no saved state
-        let db = sqlx::SqlitePool::connect(":memory:").await?;
+        let db = SqlitePool::connect(":memory:").await?;
 
         // Create metadata table but don't save any state
         sqlx::query("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
