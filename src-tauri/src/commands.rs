@@ -1604,6 +1604,7 @@ pub async fn stop_queue_processing(state: State<'_, AppState>) -> Result<(), Str
 /// Returns:
 /// - `is_processing`: Whether queue is actively processing
 /// - `current_job_id`: ID of currently executing job (if any)
+/// - `pending_count`: Number of pending jobs in queue
 #[tauri::command]
 pub async fn get_queue_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let queue_manager = state.queue_manager.lock().await.clone();
@@ -1611,9 +1612,25 @@ pub async fn get_queue_status(state: State<'_, AppState>) -> Result<serde_json::
     let is_processing = queue_manager.is_processing().await;
     let current_job_id = queue_manager.current_job().await;
 
+    // Get pending job count from database
+    let pool = state
+        .db
+        .lock()
+        .await
+        .as_ref()
+        .ok_or("Database not initialized")?
+        .clone();
+
+    let pending_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE status = 'pending'")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| format!("Failed to count pending jobs: {e}"))?;
+
     Ok(serde_json::json!({
         "isProcessing": is_processing,
         "currentJobId": current_job_id,
+        "pendingCount": pending_count,
     }))
 }
 

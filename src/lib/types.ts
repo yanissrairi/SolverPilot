@@ -87,6 +87,19 @@ export interface JobStatusResponse {
 }
 
 // =============================================================================
+// Story 2.4 - Queue Processing Status
+// =============================================================================
+
+/**
+ * Queue processing status returned by getQueueStatus()
+ */
+export interface QueueStatus {
+  isProcessing: boolean;
+  currentJobId: number | null;
+  pendingCount: number;
+}
+
+// =============================================================================
 // Story 1.5 - Duplicate Detection & Queue Filtering
 // =============================================================================
 

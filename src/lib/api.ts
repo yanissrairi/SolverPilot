@@ -9,6 +9,7 @@ import type {
   SshKeyStatus,
   JobStatusResponse,
   DependencyAnalysis,
+  QueueStatus,
 } from './types';
 
 // =============================================================================
@@ -375,11 +376,6 @@ export async function getJobStatus(): Promise<JobStatusResponse> {
 // =============================================================================
 // Queue Processing (Story 2.4)
 // =============================================================================
-
-export interface QueueStatus {
-  isProcessing: boolean;
-  currentJobId: number | null;
-}
 
 /**
  * Start automated queue processing (Story 2.4)

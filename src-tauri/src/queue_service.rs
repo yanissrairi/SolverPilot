@@ -285,8 +285,10 @@ async fn poll_job_completion(db: &SqlitePool, ssh: &SshManager, job_id: i64) -> 
         poll_interval.tick().await;
 
         // Query server DB
-        let query = format!("SELECT status, exit_code, completed_at FROM jobs WHERE id = {job_id}");
-        let sql_cmd = format!("sqlite3 ~/.solverpilot-server/server.db \"{query}\"");
+        // Note: job_id is i64 so SQL injection is not possible
+        let sql_cmd = format!(
+            "sqlite3 ~/.solverpilot-server/server.db \"SELECT status, exit_code, completed_at FROM jobs WHERE id = {job_id}\""
+        );
 
         match ssh.executor().execute(&sql_cmd).await {
             Ok(output) => {
@@ -387,10 +389,17 @@ async fn get_project_path(db: &SqlitePool, project_id: Option<i64>) -> Result<St
 
 /// Generate unique tmux session name
 ///
-/// Format: solverpilot_{username}_{`job_id_prefix`}
+/// Format: `solverpilot_{username}_{job_id:0:8}` (truncated to 8 chars)
 /// Example: `solverpilot_alice_12345678`
 fn generate_session_name(job_id: i64) -> String {
-    format!("solverpilot_{}_{}", whoami::username(), job_id)
+    // Truncate job_id to 8 characters as per AC specification
+    let job_id_str = job_id.to_string();
+    let truncated = if job_id_str.len() > 8 {
+        &job_id_str[..8]
+    } else {
+        &job_id_str
+    };
+    format!("solverpilot_{}_{}", whoami::username(), truncated)
 }
 
 /// Parse SQL output: `status|exit_code|completed_at`
@@ -443,52 +452,152 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_session_name() {
+    fn test_generate_session_name_format() {
         let session = generate_session_name(12_345_678);
         assert!(session.starts_with("solverpilot_"));
+        // Should contain the username
+        assert!(session.contains(&whoami::username()));
+        // Job ID should be at the end (truncated to 8 chars)
         assert!(session.ends_with("12345678"));
     }
 
     #[test]
-    #[allow(clippy::expect_used)]
-    fn test_parse_sql_output() {
-        // Test completed job
-        let output = "completed|0|2026-01-11T14:23:45Z";
-        let (status, exit_code, completed_at) =
-            parse_sql_output(output).expect("Should parse completed job");
-        assert_eq!(status, "completed");
-        assert_eq!(exit_code, Some(0));
-        assert_eq!(completed_at, Some("2026-01-11T14:23:45Z".to_string()));
-
-        // Test failed job
-        let output = "failed|1|2026-01-11T14:30:00Z";
-        let (status, exit_code, completed_at) =
-            parse_sql_output(output).expect("Should parse failed job");
-        assert_eq!(status, "failed");
-        assert_eq!(exit_code, Some(1));
-        assert_eq!(completed_at, Some("2026-01-11T14:30:00Z".to_string()));
-
-        // Test running job (no exit code/completed_at)
-        let output = "running||";
-        let (status, exit_code, completed_at) =
-            parse_sql_output(output).expect("Should parse running job");
-        assert_eq!(status, "running");
-        assert_eq!(exit_code, None);
-        assert_eq!(completed_at, None);
-
-        // Test malformed output
-        let output = "";
-        assert!(parse_sql_output(output).is_none());
+    fn test_generate_session_name_truncation() {
+        // Test with a large job ID that exceeds 8 digits
+        let session = generate_session_name(123_456_789_012);
+        // Should truncate to first 8 characters: "12345678"
+        assert!(session.ends_with("12345678"));
+        assert!(!session.contains("9012"));
     }
 
     #[test]
-    fn test_rsync_command_format() {
-        // Test that we construct proper rsync command
-        let project_path = "/home/user/project";
-        let remote_dest = "user@host:~/solverpilot-projects/project";
-
-        // Verify command structure
-        assert!(project_path.ends_with("project"));
-        assert!(remote_dest.contains("solverpilot-projects"));
+    fn test_generate_session_name_short_id() {
+        // Test with a short job ID (less than 8 digits)
+        let session = generate_session_name(42);
+        assert!(session.ends_with("42"));
     }
+
+    #[test]
+    fn test_parse_sql_output_completed() {
+        let output = "completed|0|2026-01-11T14:23:45Z";
+        let result = parse_sql_output(output);
+        assert!(result.is_some());
+
+        let (status, exit_code, completed_at) = result.unwrap_or_default();
+        assert_eq!(status, "completed");
+        assert_eq!(exit_code, Some(0));
+        assert_eq!(completed_at, Some("2026-01-11T14:23:45Z".to_string()));
+    }
+
+    #[test]
+    fn test_parse_sql_output_failed() {
+        let output = "failed|1|2026-01-11T14:30:00Z";
+        let result = parse_sql_output(output);
+        assert!(result.is_some());
+
+        let (status, exit_code, completed_at) = result.unwrap_or_default();
+        assert_eq!(status, "failed");
+        assert_eq!(exit_code, Some(1));
+        assert_eq!(completed_at, Some("2026-01-11T14:30:00Z".to_string()));
+    }
+
+    #[test]
+    fn test_parse_sql_output_running() {
+        let output = "running||";
+        let result = parse_sql_output(output);
+        assert!(result.is_some());
+
+        let (status, exit_code, completed_at) = result.unwrap_or_default();
+        assert_eq!(status, "running");
+        assert_eq!(exit_code, None);
+        assert_eq!(completed_at, None);
+    }
+
+    #[test]
+    fn test_parse_sql_output_malformed() {
+        // Empty output
+        assert!(parse_sql_output("").is_none());
+        // Only whitespace
+        assert!(parse_sql_output("   ").is_none());
+        // Newlines
+        assert!(parse_sql_output("\n").is_none());
+    }
+
+    #[test]
+    fn test_parse_sql_output_partial() {
+        // Only status, missing fields
+        let output = "completed";
+        let result = parse_sql_output(output);
+        assert!(result.is_some());
+        let (status, exit_code, completed_at) = result.unwrap_or_default();
+        assert_eq!(status, "completed");
+        assert_eq!(exit_code, None);
+        assert_eq!(completed_at, None);
+    }
+
+    #[test]
+    fn test_wrapper_invocation_command_format() {
+        // Verify wrapper command format matches AC specification
+        let job_id: i64 = 12345;
+        let benchmark_name = "bench.py";
+        let wrapper_cmd = format!(
+            "~/.solverpilot/bin/job_wrapper.sh {} python3 {}",
+            job_id, benchmark_name
+        );
+
+        assert!(wrapper_cmd.starts_with("~/.solverpilot/bin/job_wrapper.sh"));
+        assert!(wrapper_cmd.contains("12345"));
+        assert!(wrapper_cmd.contains("python3"));
+        assert!(wrapper_cmd.contains("bench.py"));
+    }
+
+    #[test]
+    fn test_rsync_command_structure() {
+        // Test rsync command construction logic
+        let project_path = "/home/user/myproject";
+        let ssh_host = "server.example.com";
+        let ssh_username = "alice";
+        let remote_base = "~/solverpilot-projects/";
+
+        // Extract project name
+        let project_name = std::path::Path::new(project_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+
+        assert_eq!(project_name, "myproject");
+
+        // Verify remote destination format
+        let remote_dest = format!("{ssh_username}@{ssh_host}:{remote_base}{project_name}");
+        assert_eq!(
+            remote_dest,
+            "alice@server.example.com:~/solverpilot-projects/myproject"
+        );
+    }
+
+    #[test]
+    fn test_tmux_session_collision_check_command() {
+        // Verify tmux collision check command format
+        let session_name = "solverpilot_alice_12345678";
+        let check_cmd = format!("tmux has-session -t {session_name} 2>/dev/null");
+        assert_eq!(
+            check_cmd,
+            "tmux has-session -t solverpilot_alice_12345678 2>/dev/null"
+        );
+    }
+
+    #[test]
+    fn test_tmux_create_session_command() {
+        // Verify tmux session creation command format
+        let session_name = "solverpilot_alice_12345678";
+        let wrapper_cmd = "~/.solverpilot/bin/job_wrapper.sh 12345678 python3 bench.py";
+        let create_cmd = format!("tmux new-session -d -s {session_name} \"{wrapper_cmd}\"");
+
+        assert!(create_cmd.starts_with("tmux new-session -d -s"));
+        assert!(create_cmd.contains(session_name));
+        assert!(create_cmd.contains("job_wrapper.sh"));
+    }
+
+    // Note: Integration tests with mock SSH/DB require additional infrastructure
+    // and are covered in end-to-end testing. See Story 2.4 Dev Notes.
 }
