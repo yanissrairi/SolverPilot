@@ -187,9 +187,17 @@
     }
 
     void loadJobs();
-    // TODO Epic 4: Add polling every 2 seconds
-    // const interval = setInterval(() => void loadJobs(), 2000);
-    // return () => clearInterval(interval);
+
+    // Initialize queue status polling (Story 2.5)
+    const stopPolling = queue.initPolling();
+
+    // Poll jobs list every 2 seconds as well
+    const jobsInterval = setInterval(() => void loadJobs(), 2000);
+
+    return () => {
+      stopPolling();
+      clearInterval(jobsInterval);
+    };
   });
 
   // Timestamp formatting logic (Task 6)

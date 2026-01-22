@@ -2,7 +2,7 @@
 //
 // Manages queue state (idle/running/paused) and provides actions
 // to start, pause, and resume queue processing.
-// Automatically polls queue status every 2 seconds.
+// Polling is initialized on first use via initPolling().
 
 import * as api from '$lib/api';
 import type { QueueStatus } from '$lib/types';
@@ -20,6 +20,7 @@ interface QueueStore {
 // Track previous state to detect completion
 let previousState: 'idle' | 'running' | 'paused' = 'idle';
 let hadPendingJobs = false;
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 // Create reactive queue store using $state
 const queueStore = $state<QueueStore>({
@@ -31,53 +32,74 @@ const queueStore = $state<QueueStore>({
   justCompleted: false,
 });
 
-// Poll queue status every 2 seconds
-$effect(() => {
-  const interval = setInterval(async () => {
-    try {
-      const status: QueueStatus = await api.getQueueStatus();
+// Polling function - called from QueuePanel's onMount
+async function pollQueueStatus() {
+  try {
+    const status: QueueStatus = await api.getQueueStatus();
 
-      // Detect queue completion: was running/paused with jobs, now idle with none
-      const wasActive = previousState === 'running' || previousState === 'paused';
-      const nowIdle = status.state === 'idle';
-      const queueEmpty = status.pendingCount === 0 && status.runningCount === 0;
-      const completed = wasActive && hadPendingJobs && nowIdle && queueEmpty;
+    // Detect queue completion: was running/paused with jobs, now idle with none
+    const wasActive = previousState === 'running' || previousState === 'paused';
+    const nowIdle = status.state === 'idle';
+    const queueEmpty = status.pendingCount === 0 && status.runningCount === 0;
+    const completed = wasActive && hadPendingJobs && nowIdle && queueEmpty;
 
-      // Update store
-      queueStore.state = status.state;
-      queueStore.currentJobId = status.currentJobId;
-      queueStore.pendingCount = status.pendingCount;
-      queueStore.runningCount = status.runningCount;
-      queueStore.completedCount = status.completedCount;
-      queueStore.justCompleted = completed;
+    // Update store
+    queueStore.state = status.state;
+    queueStore.currentJobId = status.currentJobId;
+    queueStore.pendingCount = status.pendingCount;
+    queueStore.runningCount = status.runningCount;
+    queueStore.completedCount = status.completedCount;
+    queueStore.justCompleted = completed;
 
-      // Track for next poll
-      previousState = status.state;
-      hadPendingJobs = status.pendingCount > 0 || status.runningCount > 0;
-    } catch {
-      // Silently ignore polling errors to avoid spamming logs
-    }
+    // Track for next poll
+    previousState = status.state;
+    hadPendingJobs = status.pendingCount > 0 || status.runningCount > 0;
+  } catch {
+    // Silently ignore polling errors to avoid spamming logs
+  }
+}
+
+// Initialize polling - should be called from a component's onMount
+function initPolling(): () => void {
+  if (pollingInterval !== null) {
+    return () => {
+      /* noop - already polling */
+    };
+  }
+
+  // Poll immediately on init
+  void pollQueueStatus();
+
+  // Then poll every 2 seconds
+  pollingInterval = setInterval(() => {
+    void pollQueueStatus();
   }, 2000);
 
-  // Cleanup interval on destroy
-  return () => clearInterval(interval);
-});
+  // Return cleanup function
+  return () => {
+    if (pollingInterval !== null) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  };
+}
 
 // Actions
 
 async function startQueue(): Promise<void> {
   await api.startQueueProcessing();
-  // Toast notification handled by QueuePanel or backend event
+  // Immediately poll to update state
+  await pollQueueStatus();
 }
 
 async function pauseQueue(): Promise<void> {
   await api.pauseQueueProcessing();
-  // Toast notification: "Queue paused - X jobs remaining"
+  await pollQueueStatus();
 }
 
 async function resumeQueue(): Promise<void> {
   await api.resumeQueueProcessing();
-  // Toast notification: "Queue resumed - processing X jobs"
+  await pollQueueStatus();
 }
 
 // Export reactive queue store with getters and actions
@@ -104,4 +126,5 @@ export const queue = {
   startQueue,
   pauseQueue,
   resumeQueue,
+  initPolling,
 };
